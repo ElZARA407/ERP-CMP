@@ -11,17 +11,32 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('vente_directes', function (Blueprint $table) {
+        Schema::create('ventes_directes', function (Blueprint $table) {
             $table->id();
+            $table->string('numero', 30)->unique();
+            $table->foreignId('client_id')
+                  ->constrained('clients')
+                  ->restrictOnDelete();
+            $table->date('date');
+            $table->foreignId('location_id')
+                  ->constrained('locations')
+                  ->restrictOnDelete();
+            $table->enum('statut', ['brouillon', 'validee', 'livree'])
+                  ->default('brouillon');
+            $table->decimal('total', 14, 2)->default(0);
+            $table->foreignId('created_by')
+                  ->constrained('utilisateurs')
+                  ->restrictOnDelete();
             $table->timestamps();
+
+            $table->index(['client_id', 'statut']);
+            $table->index(['statut', 'date']);
+            $table->index('location_id');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('vente_directes');
+        Schema::dropIfExists('ventes_directes');
     }
 };

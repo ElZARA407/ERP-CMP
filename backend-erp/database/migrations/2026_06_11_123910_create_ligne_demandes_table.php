@@ -13,7 +13,17 @@ return new class extends Migration
     {
         Schema::create('ligne_demandes', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('demande_achat_id')
+                  ->constrained('demandes_achat')
+                  ->cascadeOnDelete();
+            $table->enum('entite_type', ['matiere', 'produit']);
+            $table->unsignedBigInteger('entite_id');
+            $table->decimal('quantite', 12, 3);
+            $table->text('observation_ligne')->nullable();
             $table->timestamps();
+
+            $table->index('demande_achat_id');
+            $table->index(['entite_type', 'entite_id']);
         });
     }
 

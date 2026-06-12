@@ -13,7 +13,19 @@ return new class extends Migration
     {
         Schema::create('bt_evenements', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('bt_session_id')
+                  ->constrained('bt_sessions')
+                  ->cascadeOnDelete();
+            $table->enum('type_evenement', ['broyage', 'pause', 'panne', 'autre']);
+            $table->time('heure_debut');
+            $table->time('heure_fin')->nullable();
+            $table->text('description')->nullable();
+            $table->foreignId('operateur_id')
+                  ->constrained('utilisateurs')
+                  ->restrictOnDelete();
             $table->timestamps();
+
+            $table->index(['bt_session_id', 'type_evenement']);
         });
     }
 

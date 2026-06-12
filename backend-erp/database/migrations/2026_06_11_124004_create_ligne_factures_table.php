@@ -13,13 +13,22 @@ return new class extends Migration
     {
         Schema::create('ligne_factures', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('facture_id')
+                  ->constrained('factures')
+                  ->cascadeOnDelete();
+            $table->foreignId('classement_id')
+                  ->constrained('classement_produits')
+                  ->restrictOnDelete();
+            $table->decimal('quantite', 12, 3);
+            $table->decimal('prix_unitaire', 12, 2);
+            $table->decimal('total_ligne', 14, 2)->default(0);
             $table->timestamps();
+
+            $table->index('facture_id');
+            $table->index('classement_id');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('ligne_factures');

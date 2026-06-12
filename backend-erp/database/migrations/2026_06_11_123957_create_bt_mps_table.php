@@ -13,7 +13,19 @@ return new class extends Migration
     {
         Schema::create('bt_mps', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('bt_session_id')
+                  ->constrained('bt_sessions')
+                  ->cascadeOnDelete();
+            $table->foreignId('matiere_id')
+                  ->constrained('matieres_premieres')
+                  ->restrictOnDelete();
+            $table->enum('type', ['entree', 'sortie']);
+            $table->decimal('quantite', 12, 3);
+            $table->decimal('quantite_restituee', 12, 3)->default(0);
             $table->timestamps();
+
+            $table->index(['bt_session_id', 'type']);
+            $table->index('matiere_id');
         });
     }
 

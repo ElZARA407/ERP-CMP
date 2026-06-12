@@ -13,7 +13,32 @@ return new class extends Migration
     {
         Schema::create('bp_sessions', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('bon_production_id')
+                  ->constrained('bon_productions')
+                  ->cascadeOnDelete();
+            $table->unsignedInteger('session_numero');
+            $table->date('date_session');
+            $table->string('machine_production', 100);
+            $table->decimal('cout_electricite', 12, 2)->default(0);
+            $table->decimal('cout_total', 14, 2)->default(0);
+            $table->enum('statut', ['ouverte', 'validee'])
+                  ->default('ouverte');
+            $table->foreignId('saisi_by')
+                  ->nullable()
+                  ->constrained('utilisateurs')
+                  ->nullOnDelete();
+            $table->foreignId('valide_by')
+                  ->nullable()
+                  ->constrained('utilisateurs')
+                  ->nullOnDelete();
             $table->timestamps();
+
+            // CORRECTION CRITIQUE : unicité session par ODF
+            $table->unique(
+                ['bon_production_id', 'session_numero'],
+                'uq_bp_session_numero'
+            );
+            $table->index(['bon_production_id', 'statut']);
         });
     }
 

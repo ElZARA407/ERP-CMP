@@ -13,7 +13,21 @@ return new class extends Migration
     {
         Schema::create('ligne_commandes', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('commande_id')
+                  ->constrained('commandes')
+                  ->cascadeOnDelete();
+            $table->foreignId('classement_id')
+                  ->constrained('classement_produits')
+                  ->restrictOnDelete();
+            $table->decimal('quantite', 12, 3);
+            $table->decimal('quantite_restante', 12, 3)->default(0);
+            $table->decimal('prix_unitaire', 12, 2);
+            $table->enum('etat', ['disponible', 'indisponible', 'en_cours'])
+                  ->default('disponible');
             $table->timestamps();
+
+            $table->index(['commande_id', 'etat']);
+            $table->index('classement_id');
         });
     }
 

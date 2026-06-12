@@ -11,9 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('demande_achats', function (Blueprint $table) {
+        Schema::create('demandes_achat', function (Blueprint $table) {
             $table->id();
+            $table->string('numero', 30)->unique();
+            $table->date('date_demande');
+            $table->foreignId('demandeur_id')
+                  ->constrained('utilisateurs')
+                  ->restrictOnDelete();
+            $table->enum('statut', ['brouillon', 'soumise', 'approuvee', 'rejetee'])
+                  ->default('brouillon');
+            $table->text('observations')->nullable();
             $table->timestamps();
+
+            $table->index(['statut', 'date_demande']);
+            $table->index('demandeur_id');
         });
     }
 
@@ -22,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('demande_achats');
+        Schema::dropIfExists('demandes_achat');
     }
 };

@@ -13,7 +13,17 @@ return new class extends Migration
     {
         Schema::create('contrats', function (Blueprint $table) {
             $table->id();
+            $table->string('numero', 30)->unique();
+            $table->foreignId('client_id')
+                  ->constrained('clients')
+                  ->restrictOnDelete();
+            // CORRECTION : VARCHAR(7) format YYYY-MM
+            $table->string('mois', 7);
+            $table->boolean('actif')->default(true);
             $table->timestamps();
+
+            $table->index(['client_id', 'mois']);
+            $table->index(['mois', 'actif']);
         });
     }
 
