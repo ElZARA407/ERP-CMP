@@ -1,12 +1,51 @@
 <?php
+// app/Models/Fournisseur.php
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[Table('fournisseurs')]
+#[Fillable(
+    'nom', 'reference', 'NIF', 'STAT',
+    'adresse', 'email', 'contact',
+    'interlocutaire', 'code_compta', 'actif'
+)]
 class Fournisseur extends Model
 {
-    /** @use HasFactory<\Database\Factories\FournisseurFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    // ── Casts ──────────────────────────────────────────────
+    protected function casts(): array
+    {
+        return [
+            'actif' => 'boolean',
+        ];
+    }
+
+    // ── Scopes ─────────────────────────────────────────────
+    public function scopeActifs($query)
+    {
+        return $query->where('actif', true);
+    }
+
+    // ── Relations ──────────────────────────────────────────
+    public function journalAchats(): HasMany
+    {
+        return $this->hasMany(JournalAchat::class);
+    }
+
+    // ── Méthodes métier ────────────────────────────────────
+    public function totalAchatsAnnuel(int $annee): float
+    {
+        return (float) $this->journalAchats()
+            ->where('statut', 'valide')
+            ->whereYear('date', $annee)
+            ->sum('total');
+    }
 }
