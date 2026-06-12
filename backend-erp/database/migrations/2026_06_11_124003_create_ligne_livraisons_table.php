@@ -18,12 +18,10 @@ return new class extends Migration
                   ->cascadeOnDelete();
             $table->foreignId('ligne_commande_id')
                   ->nullable()
-                  ->constrained('lignes_commande')
-                  ->nullOnDelete();
+                  ->constrained('ligne_commandes');
             $table->foreignId('ligne_vente_directe_id')
                   ->nullable()
-                  ->constrained('lignes_vente_directe')
-                  ->nullOnDelete();
+                  ->constrained('lignes_vente_directe');
             $table->foreignId('classement_id')
                   ->constrained('classement_produits')
                   ->restrictOnDelete();

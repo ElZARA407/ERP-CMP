@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('nomencla', 30)->unique();
             $table->string('designation', 150);
             $table->foreignId('categorie_id')
-                  ->constrained('categories_produits')
+                  ->constrained('categorie_produits')
                   ->restrictOnDelete();
             $table->string('contenance', 20)->nullable();
             $table->string('format', 20)->nullable();
