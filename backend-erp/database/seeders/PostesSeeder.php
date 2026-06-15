@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\Poste;
 
 class PostesSeeder extends Seeder
 {
@@ -15,38 +16,38 @@ class PostesSeeder extends Seeder
         $postes = [
             [
                 'nom'             => 'Opérateur de production',
-                'taux_horaire'    => 1_500.00,
-                'salaire_mensuel' => 260_000.00,
+                'taux_horaire'    => 500.00,
+                'salaire_mensuel' => 260000.00,
             ],
             [
                 'nom'             => 'Opérateur de broyage',
-                'taux_horaire'    => 1_500.00,
-                'salaire_mensuel' => 260_000.00,
+                'taux_horaire'    => 500.00,
+                'salaire_mensuel' => 260000.00,
             ],
             [
                 'nom'             => 'Chef d\'équipe production',
-                'taux_horaire'    => 2_200.00,
-                'salaire_mensuel' => 380_000.00,
+                'taux_horaire'    => 200.00,
+                'salaire_mensuel' => 380000.00,
             ],
             [
                 'nom'             => 'Technicien de maintenance',
-                'taux_horaire'    => 2_500.00,
-                'salaire_mensuel' => 430_000.00,
+                'taux_horaire'    => 2500.00,
+                'salaire_mensuel' => 430000.00,
             ],
             [
                 'nom'             => 'Responsable qualité',
-                'taux_horaire'    => 3_000.00,
-                'salaire_mensuel' => 520_000.00,
+                'taux_horaire'    => 3000.00,
+                'salaire_mensuel' => 520000.00,
             ],
             [
                 'nom'             => 'Manutentionnaire',
-                'taux_horaire'    => 1_200.00,
-                'salaire_mensuel' => 210_000.00,
+                'taux_horaire'    => 1200.00,
+                'salaire_mensuel' => 210000.00,
             ],
             [
                 'nom'             => 'Chauffeur livreur',
-                'taux_horaire'    => 1_800.00,
-                'salaire_mensuel' => 310_000.00,
+                'taux_horaire'    => 1800.00,
+                'salaire_mensuel' => 310000.00,
             ],
         ];
 

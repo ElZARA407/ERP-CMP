@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('postes', function (Blueprint $table) {
             $table->id();
             $table->string('nom', 100);
-            $table->decimal('taux_horaire', 5, 2);
-            $table->decimal('salaire_mensuel', 10, 2)->nullable();
+            $table->decimal('taux_horaire', 10, 2);
+            $table->decimal('salaire_mensuel', 12, 2)->nullable();
             $table->timestamps();
         });
     }

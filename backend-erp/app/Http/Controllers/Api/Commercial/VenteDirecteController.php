@@ -68,7 +68,7 @@ class VenteDirecteController extends BaseApiController
                 ...$validated,
                 'statut'     => 'brouillon',
                 'total'      => $total,
-                'created_by' => auth()->id(),
+                'created_by' => $request->user()->id,
             ]);
 
             foreach ($lignes as $ligne) {

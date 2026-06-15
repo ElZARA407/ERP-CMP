@@ -67,7 +67,7 @@ class CommandeController extends BaseApiController
                 'location_id'           => $data['location_id'],
                 'echeance'              => $data['echeance'],
                 'statut'                => 'non_livree',
-                'created_by'            => auth()->id(),
+                'created_by'            => $request->user()->id,
             ]);
 
             foreach ($data['lignes'] as $ligne) {
@@ -121,9 +121,9 @@ class CommandeController extends BaseApiController
     }
 
     // ── POST /commandes/{id}/duplicate ────────────────────
-    public function duplicate(Commande $commande): JsonResponse
+    public function duplicate(Request $request, Commande $commande): JsonResponse
     {
-        $nouvelle = DB::transaction(function () use ($commande) {
+        $nouvelle = DB::transaction(function () use ($commande, $request) {
             $commande->load('lignes');
 
             $nouvelle = Commande::create([
@@ -134,7 +134,7 @@ class CommandeController extends BaseApiController
                 'location_id'           => $commande->location_id,
                 'echeance'              => $commande->echeance,
                 'statut'                => 'non_livree',
-                'created_by'            => auth()->id(),
+                'created_by'            => $request->user()->id,
             ]);
 
             foreach ($commande->lignes as $ligne) {

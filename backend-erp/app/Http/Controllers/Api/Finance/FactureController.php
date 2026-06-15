@@ -55,7 +55,7 @@ class FactureController extends BaseApiController
     {
         try {
             $livraison = \App\Models\Livraison::findOrFail($request->livraison_id);
-            $facture   = $this->factureService->creerDepuisLivraison($livraison, auth()->user());
+            $facture   = $this->factureService->creerDepuisLivraison($livraison, $request->user());
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), 422);
         }
@@ -95,7 +95,7 @@ class FactureController extends BaseApiController
             $this->factureService->enregistrerPaiement(
                 $facture,
                 ModePaiement::from($request->mode_paiement),
-                auth()->user()
+                $request->user()
             );
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), 422);
@@ -108,12 +108,12 @@ class FactureController extends BaseApiController
     }
 
     // ── POST /factures/{id}/annuler ───────────────────────
-    public function annuler(Facture $facture): JsonResponse
+    public function annuler(Request $request, Facture $facture): JsonResponse
     {
         $this->authorize('annuler', $facture);
 
         try {
-            $this->factureService->annuler($facture, auth()->user());
+            $this->factureService->annuler($facture, $request->user());
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), 422);
         }
