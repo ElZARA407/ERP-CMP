@@ -12,6 +12,12 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'actif' => \App\Http\Middleware\CheckUtilisateurActif::class,
+            'role'  => \App\Http\Middleware\CheckRole::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions) {
         // Gestion des exceptions métier en JSON pour l'API
         $exceptions->render(function (\DomainException $e, $request) {
