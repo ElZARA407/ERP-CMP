@@ -32,7 +32,7 @@ class MatierePremiere extends Model
     {
         return [
             'prix_moyen' => 'decimal:2',
-            'seuil'      => 'decimal:12,3',
+            'seuil'      => 'decimal:2',
             'actif'      => 'boolean',
         ];
     }
