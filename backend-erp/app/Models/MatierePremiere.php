@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Table('matieres_premieres')]
 #[Fillable(
     'reference', 'nom', 'type', 'description',
-    'unite', 'prix_moyen', 'actif'
+    'unite', 'prix_moyen', 'seuil', 'actif'
 )]
 class MatierePremiere extends Model
 {
@@ -32,6 +32,7 @@ class MatierePremiere extends Model
     {
         return [
             'prix_moyen' => 'decimal:2',
+            'seuil'      => 'decimal:12,3',
             'actif'      => 'boolean',
         ];
     }

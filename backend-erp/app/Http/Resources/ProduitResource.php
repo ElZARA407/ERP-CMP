@@ -19,6 +19,7 @@ class ProduitResource extends JsonResource
             'unite'       => $this->unite,
             'colisage'    => (float) $this->colisage,
             'poids'       => $this->poids,
+            'seuil'       => (float) $this->seuil,
             'actif'       => $this->actif,
             'categorie'   => $this->whenLoaded('categorie', fn() => [
                 'id'  => $this->categorie->id,

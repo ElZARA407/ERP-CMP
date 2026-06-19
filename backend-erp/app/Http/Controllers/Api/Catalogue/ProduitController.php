@@ -51,7 +51,8 @@ class ProduitController extends BaseApiController
             'format'       => ['nullable', 'string', 'max:20'],
             'unite'        => ['required', 'string', 'max:10'],
             'colisage'     => ['required', 'numeric', 'min:1'],
-            'poids'        => ['required', 'string', 'max:10'],
+            'poids'         => ['required', 'string', 'max:10'],
+            'seuil'         => ['nullable', 'numeric', 'min:0'],
             'classements'  => ['nullable', 'array'],
             'classements.*.qualite'         => ['required', 'in:1er,2e,casse'],
             'classements.*.prix_specifique' => ['nullable', 'numeric', 'min:0'],
@@ -93,6 +94,7 @@ class ProduitController extends BaseApiController
             'format'       => ['nullable', 'string', 'max:20'],
             'colisage'     => ['sometimes', 'numeric', 'min:1'],
             'poids'        => ['sometimes', 'string', 'max:10'],
+            'seuil'         => ['sometimes', 'numeric', 'min:0'],
             'actif'        => ['sometimes', 'boolean'],
         ]);
 

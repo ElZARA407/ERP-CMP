@@ -29,7 +29,7 @@ return new class extends Migration
             $table->boolean('actif')->default(true);
             $table->timestamps();
             $table->softDeletes();
-
+            
             $table->index('type');
             $table->index('actif');
             $table->fullText('nom');

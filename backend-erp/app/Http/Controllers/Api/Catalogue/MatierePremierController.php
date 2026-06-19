@@ -41,13 +41,14 @@ class MatierePremierController extends BaseApiController
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
+        $validated = $request->validate([ 
             'reference'   => ['required', 'string', 'max:30', 'unique:matieres_premieres,reference'],
             'nom'         => ['required', 'string', 'max:150'],
             'type'        => ['required', 'in:preformes,broyee,brute,vierge,colorant,autre'],
             'description' => ['nullable', 'string'],
             'unite'       => ['required', 'string', 'max:10'],
             'prix_moyen'  => ['nullable', 'numeric', 'min:0'],
+            'seuil'       => ['nullable', 'numeric', 'min:0'],
             'actif'       => ['boolean'],
         ]);
 
@@ -67,6 +68,7 @@ class MatierePremierController extends BaseApiController
             'nom'         => ['sometimes', 'string', 'max:150'],
             'description' => ['nullable', 'string'],
             'unite'       => ['sometimes', 'string', 'max:10'],
+            'seuil'       => ['sometimes', 'numeric', 'min:0'],
             'actif'       => ['sometimes', 'boolean'],
         ]);
 
