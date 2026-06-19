@@ -20,18 +20,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Produit extends Model
 {
     use HasFactory, SoftDeletes;
-    public function model(array $row)
-    {
-        dd($row); // ⚠️ à retirer après debug
-        // ...
-    }
 
     // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
             'colisage' => 'decimal:2',
-            'seuil'    => 'decimal:12,3',
+            'seuil'    => 'decimal:2',
             'actif'    => 'boolean',
         ];
     }
