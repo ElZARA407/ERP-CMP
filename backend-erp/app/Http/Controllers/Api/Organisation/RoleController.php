@@ -13,6 +13,8 @@ class RoleController extends BaseApiController
 {
     public function index(): JsonResponse
     {
+        $this->authorize('viewAny', Role::class);
+
         $roles = Role::withCount('utilisateurs')->orderBy('nom')->get();
 
         return $this->success(RoleResource::collection($roles));
@@ -27,13 +29,15 @@ class RoleController extends BaseApiController
             'description' => ['nullable', 'string'],
         ]);
 
-        $role = Role::create($validated);
+        $role = Role::create($validated)->loadCount('utilisateurs');
 
         return $this->created(new RoleResource($role));
     }
 
     public function show(Role $role): JsonResponse
     {
+        $this->authorize('view', $role);
+
         $role->loadCount('utilisateurs');
 
         return $this->success(new RoleResource($role));
@@ -41,6 +45,8 @@ class RoleController extends BaseApiController
 
     public function update(Request $request, Role $role): JsonResponse
     {
+        $this->authorize('update', $role);
+
         $validated = $request->validate([
             'nom'         => ['sometimes', 'string', 'max:50', "unique:roles,nom,{$role->id}"],
             'description' => ['nullable', 'string'],
@@ -48,11 +54,16 @@ class RoleController extends BaseApiController
 
         $role->update($validated);
 
-        return $this->success(new RoleResource($role->fresh()), 'Rôle mis à jour.');
+        return $this->success(
+            new RoleResource($role->fresh()->loadCount('utilisateurs')),
+            'Rôle mis à jour.'
+        );
     }
 
     public function destroy(Role $role): JsonResponse
     {
+        $this->authorize('delete', $role);
+
         if ($role->utilisateurs()->exists()) {
             return $this->error(
                 'Ce rôle ne peut pas être supprimé : des utilisateurs y sont rattachés.',

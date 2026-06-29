@@ -73,7 +73,7 @@ class UtilisateurController extends BaseApiController
 
     public function destroy(Request $request, Utilisateur $utilisateur): JsonResponse
     {
-        if ($utilisateur->id === $request->user()->id()) {
+        if ($utilisateur->id === $request->user()->id) {
             return $this->error('Vous ne pouvez pas supprimer votre propre compte.', 422);
         }
 
@@ -84,7 +84,7 @@ class UtilisateurController extends BaseApiController
 
     public function toggleActif(Request $request, Utilisateur $utilisateur): JsonResponse
     {
-        if ($utilisateur->id === $request->user()->id()) {
+        if ($utilisateur->id === $request->user()->id) {
             return $this->error('Impossible de désactiver votre propre compte.', 422);
         }
 
