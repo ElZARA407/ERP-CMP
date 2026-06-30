@@ -3,10 +3,10 @@
 
 namespace App\Policies;
 
+use App\Enums\StatutProduction;
 use App\Models\BonProduction;
 use App\Models\Role;
 use App\Models\Utilisateur;
-use App\Enums\StatutProduction;
 
 class ProductionPolicy
 {
@@ -24,7 +24,12 @@ class ProductionPolicy
         return in_array($user->role?->nom, [
             Role::RESPONSABLE_PROD,
             Role::OPERATEUR_SAISIE,
-        ]);
+        ], true);
+    }
+
+    public function view(Utilisateur $user, BonProduction $bp): bool
+    {
+        return $this->viewAny($user);
     }
 
     public function create(Utilisateur $user): bool
@@ -32,12 +37,18 @@ class ProductionPolicy
         return $user->role?->nom === Role::RESPONSABLE_PROD;
     }
 
+    public function update(Utilisateur $user, BonProduction $bp): bool
+    {
+        return $user->role?->nom === Role::RESPONSABLE_PROD
+            && $bp->statut->estActif();
+    }
+
     public function saisirSession(Utilisateur $user, BonProduction $bp): bool
     {
         return in_array($user->role?->nom, [
             Role::RESPONSABLE_PROD,
             Role::OPERATEUR_SAISIE,
-        ]) && $bp->statut->estActif();
+        ], true) && $bp->statut->estActif();
     }
 
     public function validerSession(Utilisateur $user, BonProduction $bp): bool
@@ -50,5 +61,11 @@ class ProductionPolicy
     {
         return $user->role?->nom === Role::RESPONSABLE_PROD
             && $bp->statut === StatutProduction::EN_COURS;
+    }
+
+    public function annuler(Utilisateur $user, BonProduction $bp): bool
+    {
+        return $user->role?->nom === Role::RESPONSABLE_PROD
+            && $bp->statut === StatutProduction::OUVERT;
     }
 }

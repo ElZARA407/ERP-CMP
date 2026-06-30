@@ -3,12 +3,12 @@
 
 namespace App\Http\Controllers\Api\Production;
 
+use App\Enums\StatutProduction;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Production\StoreBonProductionRequest;
 use App\Http\Resources\BonProductionResource;
 use App\Models\BonProduction;
 use App\Services\ProductionService;
-use App\Enums\StatutProduction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,6 +20,8 @@ class BonProductionController extends BaseApiController
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', BonProduction::class);
+
         $query = BonProduction::with('location', 'produit', 'createur');
 
         if ($request->filled('location_id')) {
@@ -42,8 +44,9 @@ class BonProductionController extends BaseApiController
             $query->where('date', '<=', $request->date_fin);
         }
 
-        $bps = $query->orderByDesc('date')
-                     ->paginate($request->get('per_page', config('api.per_page')));
+        $bps = $query
+            ->orderByDesc('date')
+            ->paginate($request->get('per_page', config('api.per_page')));
 
         return $this->success(
             BonProductionResource::collection($bps)->response()->getData(true)
@@ -52,6 +55,8 @@ class BonProductionController extends BaseApiController
 
     public function store(StoreBonProductionRequest $request): JsonResponse
     {
+        $this->authorize('create', BonProduction::class);
+
         $bp = BonProduction::create([
             'numero'             => BonProduction::generateReference('BP'),
             ...$request->validated(),
@@ -67,8 +72,12 @@ class BonProductionController extends BaseApiController
 
     public function show(BonProduction $bonsProduction): JsonResponse
     {
+        $this->authorize('view', $bonsProduction);
+
         $bonsProduction->load(
-            'location', 'produit', 'createur',
+            'location',
+            'produit',
+            'createur',
             'sessions.matieres.matiere',
             'sessions.obtenus.classement.produit',
             'sessions.employes.employe',
@@ -80,16 +89,21 @@ class BonProductionController extends BaseApiController
 
     public function update(Request $request, BonProduction $bonsProduction): JsonResponse
     {
+        $this->authorize('update', $bonsProduction);
+
         if (!$bonsProduction->statut->estActif()) {
             return $this->error('Ce bon de production ne peut plus être modifié.', 422);
         }
 
-        $bonsProduction->update($request->only([
-            'machine_production', 'quantite_cible',
-        ]));
+        $validated = $request->validate([
+            'machine_production' => ['sometimes', 'string', 'max:100'],
+            'quantite_cible'     => ['sometimes', 'numeric', 'min:0.001'],
+        ]);
+
+        $bonsProduction->update($validated);
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh()),
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
             'Bon de production mis à jour.'
         );
     }
@@ -99,9 +113,10 @@ class BonProductionController extends BaseApiController
         return $this->forbidden('Les bons de production ne peuvent pas être supprimés.');
     }
 
-    // ── POST /bons-production/{bp}/cloture ────────────────
     public function cloture(BonProduction $bonsProduction): JsonResponse
     {
+        $this->authorize('cloture', $bonsProduction);
+
         try {
             $this->productionService->cloturerBP($bonsProduction, auth()->user());
         } catch (\DomainException $e) {
@@ -109,20 +124,24 @@ class BonProductionController extends BaseApiController
         }
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh()),
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
             'Bon de production clôturé.'
         );
     }
 
-    // ── POST /bons-production/{bp}/annuler ────────────────
     public function annuler(BonProduction $bonsProduction): JsonResponse
     {
+        $this->authorize('annuler', $bonsProduction);
+
         if ($bonsProduction->statut !== StatutProduction::OUVERT) {
             return $this->error('Seul un BP ouvert peut être annulé.', 422);
         }
 
         $bonsProduction->update(['statut' => StatutProduction::ANNULE->value]);
 
-        return $this->success(null, 'Bon de production annulé.');
+        return $this->success(
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
+            'Bon de production annulé.'
+        );
     }
 }

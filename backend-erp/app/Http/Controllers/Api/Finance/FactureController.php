@@ -4,12 +4,12 @@
 namespace App\Http\Controllers\Api\Finance;
 
 use App\Http\Controllers\Api\BaseApiController;
-use App\Http\Requests\Finance\StoreFactureRequest;
 use App\Http\Requests\Finance\PayerFactureRequest;
+use App\Http\Requests\Finance\StoreFactureRequest;
 use App\Http\Resources\FactureResource;
+use App\Enums\ModePaiement;
 use App\Models\Facture;
 use App\Services\FactureService;
-use App\Enums\ModePaiement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -55,13 +55,13 @@ class FactureController extends BaseApiController
     {
         try {
             $livraison = \App\Models\Livraison::findOrFail($request->livraison_id);
-            $facture   = $this->factureService->creerDepuisLivraison($livraison, $request->user());
+            $facture = $this->factureService->creerDepuisLivraison($livraison, $request->user());
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), 422);
         }
 
         return $this->created(
-            new FactureResource($facture->load('client', 'lignes.classement.produit'))
+            new FactureResource($facture->load('client', 'livraison', 'lignes.classement.produit'))
         );
     }
 
@@ -102,7 +102,7 @@ class FactureController extends BaseApiController
         }
 
         return $this->success(
-            new FactureResource($facture->fresh()),
+            new FactureResource($facture->fresh()->load('client', 'livraison', 'lignes.classement.produit')),
             'Paiement enregistré.'
         );
     }
@@ -118,14 +118,17 @@ class FactureController extends BaseApiController
             return $this->error($e->getMessage(), 422);
         }
 
-        return $this->success(null, 'Facture annulée.');
+        return $this->success(
+            new FactureResource($facture->fresh()->load('client', 'livraison', 'lignes.classement.produit')),
+            'Facture annulée.'
+        );
     }
 
     // ── GET /factures/retards ─────────────────────────────
     public function enRetard(): JsonResponse
     {
         $factures = Facture::enRetard()
-            ->with('client')
+            ->with('client', 'livraison')
             ->orderBy('echeance_paiement')
             ->get();
 

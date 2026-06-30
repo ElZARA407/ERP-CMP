@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api\Logistique;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\LivraisonResource;
-use App\Models\Livraison;
 use App\Models\LigneLivraison;
+use App\Models\Livraison;
 use App\Services\LivraisonService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +32,14 @@ class LivraisonController extends BaseApiController
 
         if ($request->filled('source_type')) {
             $query->where('source_type', $request->source_type);
+        }
+
+        if ($request->has('est_facturee')) {
+            if ($request->boolean('est_facturee')) {
+                $query->whereHas('facture');
+            } else {
+                $query->whereDoesntHave('facture');
+            }
         }
 
         $livraisons = $query->orderByDesc('created_at')
@@ -79,7 +87,7 @@ class LivraisonController extends BaseApiController
                     'ligne_commande_id'        => $ligne['ligne_commande_id'] ?? null,
                     'ligne_vente_directe_id'   => $ligne['ligne_vente_directe_id'] ?? null,
                     'classement_id'            => $ligne['classement_id'],
-                    'quantite_livree'           => $ligne['quantite_livree'],
+                    'quantite_livree'          => $ligne['quantite_livree'],
                 ]);
             }
 
