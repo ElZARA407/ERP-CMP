@@ -1,5 +1,4 @@
 <?php
-// app/Models/ClassementProduit.php
 
 namespace App\Models;
 
@@ -8,29 +7,19 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * LARAVEL 13 :
- * Le cast QualiteProduit::class sur l'enum PHP 8.3 permet d'écrire :
- *   $classement->qualite === QualiteProduit::PREMIER
- * au lieu de :
- *   $classement->qualite === '1er'
- */
 #[Table('classement_produits')]
-#[Fillable('produit_id', 'qualite', 'prix_specifique', 'actif')]
+#[Fillable('qualite', 'libelle', 'actif')]
 class ClassementProduit extends Model
 {
     use HasFactory;
 
-    // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
-            'qualite'         => QualiteProduit::class,
-            'prix_specifique' => 'decimal:2',
-            'actif'           => 'boolean',
+            'qualite' => QualiteProduit::class,
+            'actif'   => 'boolean',
         ];
     }
 
@@ -46,9 +35,11 @@ class ClassementProduit extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
-    public function produit(): BelongsTo
+    // Plus de relation produit() — le lien se fait via stocks
+
+    public function stocks(): HasMany
     {
-        return $this->belongsTo(Produit::class);
+        return $this->hasMany(Stock::class, 'classement_id');
     }
 
     public function lignesCommande(): HasMany
@@ -81,23 +72,16 @@ class ClassementProduit extends Model
         return $this->hasMany(BpObtenue::class, 'classement_id');
     }
 
-    public function stocks(): HasMany
-    {
-        return $this->hasMany(Stock::class, 'classement_id');
-    }
-
     // ── Méthodes métier ────────────────────────────────────
-    public function prixEffectif(): float
-    {
-        return (float) ($this->prix_specifique ?? 0);
-    }
 
-    public function designation(): string
+    /**
+     * Tous les produits distincts qui ont un stock avec ce classement
+     */
+    public function produits()
     {
-        return $this->produit->designation
-            . ' ('
-            . $this->qualite->label()
-            . ')';
+        return Produit::whereHas('stocks', function ($q) {
+            $q->where('classement_id', $this->id);
+        });
     }
 
     public function stockDisponible(?int $locationId = null): float
@@ -109,5 +93,10 @@ class ClassementProduit extends Model
         }
 
         return (float) $query->sum('stock_total');
+    }
+
+    public function label(): string
+    {
+        return $this->libelle ?? $this->qualite->label();
     }
 }

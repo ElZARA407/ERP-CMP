@@ -6,33 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('classement_produits', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('produit_id')
-                  ->constrained('produits')
-                  ->cascadeOnDelete();
-            $table->enum('qualite', ['1er', '2e', 'casse']);
-            $table->decimal('prix_specifique', 12, 2)->nullable();
+            $table->enum('qualite', ['1er', '2e', 'casse'])->unique();
+            $table->string('libelle')->nullable(); // ex: "1ère qualité", "2ème qualité", "Cassé"
             $table->boolean('actif')->default(true);
             $table->timestamps();
-
-            // CORRECTION CRITIQUE : unicité métier produit × qualité
-            $table->unique(
-                ['produit_id', 'qualite'],
-                'uq_classement_produit_qualite'
-            );
-            $table->index(['produit_id', 'actif']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('classement_produits');

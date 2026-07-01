@@ -22,7 +22,7 @@ class AdminSeeder extends Seeder
             ['email' => 'admin@cmp.mg'],
             [
                 'nom'         => 'Administrateur CMP',
-                'password'    => Hash::make('CMP@2026!Admin'),
+                'password'    => Hash::make('projet12'),
                 'role_id'     => $roleAdmin->id,
                 'location_id' => $siege->id,
                 'actif'       => true,
@@ -34,7 +34,7 @@ class AdminSeeder extends Seeder
             ['email' => 'commercial@cmp.mg'],
             [
                 'nom'         => 'Commercial Démo',
-                'password'    => Hash::make('CMP@2026!Demo'),
+                'password'    => Hash::make('projet12'),
                 'role_id'     => $roleCommercial->id,
                 'location_id' => $siege->id,
                 'actif'       => true,
