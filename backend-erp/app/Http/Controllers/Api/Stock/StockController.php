@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Stock/StockController.php
 
 namespace App\Http\Controllers\Api\Stock;
 
@@ -13,8 +12,8 @@ class StockController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Stock::with('location', 'classement.produit')
-                      ->where('stock_total', '>', 0);
+        $query = Stock::with('location', 'classement', 'entite')
+                    ->where('stock_total', '>', 0);
 
         if ($request->filled('location_id')) {
             $query->where('location_id', $request->location_id);
@@ -34,7 +33,7 @@ class StockController extends BaseApiController
     public function ruptures(): JsonResponse
     {
         $stocks = Stock::enRupture()
-            ->with('location', 'classement.produit')
+            ->with('location', 'classement', 'entite')
             ->get();
 
         return $this->success(StockResource::collection($stocks));
@@ -42,30 +41,30 @@ class StockController extends BaseApiController
 
     public function parLocation(int $id): JsonResponse
     {
-        $stocks = Stock::with('classement.produit')
-                       ->where('location_id', $id)
-                       ->where('stock_total', '>', 0)
-                       ->get();
+        $stocks = Stock::with('location', 'classement', 'entite')
+                    ->where('location_id', $id)
+                    ->where('stock_total', '>', 0)
+                    ->get();
 
         return $this->success(StockResource::collection($stocks));
     }
 
     public function parProduit(int $id): JsonResponse
     {
-        $stocks = Stock::with('location', 'classement')
-                       ->where('entite_type', 'produit')
-                       ->where('entite_id', $id)
-                       ->get();
+        $stocks = Stock::with('location', 'classement', 'entite')
+                    ->where('entite_type', 'produit')
+                    ->where('entite_id', $id)
+                    ->get();
 
         return $this->success(StockResource::collection($stocks));
     }
 
     public function parMatiere(int $id): JsonResponse
     {
-        $stocks = Stock::with('location')
-                       ->where('entite_type', 'matiere')
-                       ->where('entite_id', $id)
-                       ->get();
+        $stocks = Stock::with('location', 'entite')
+                    ->where('entite_type', 'matiere')
+                    ->where('entite_id', $id)
+                    ->get();
 
         return $this->success(StockResource::collection($stocks));
     }

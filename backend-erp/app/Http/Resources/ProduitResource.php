@@ -1,5 +1,4 @@
 <?php
-// app/Http/Resources/ProduitResource.php
 
 namespace App\Http\Resources;
 
@@ -25,16 +24,18 @@ class ProduitResource extends JsonResource
                 'id'  => $this->categorie->id,
                 'nom' => $this->categorie->nom,
             ]),
-            'classements' => $this->whenLoaded('classements', fn() =>
-                $this->classements->map(fn($c) => [
-                    'id'              => $c->id,
-                    'qualite'         => $c->qualite->value,
-                    'qualite_libelle' => $c->qualite->label(),
-                    'prix_specifique' => $c->prix_specifique
-                        ? (float) $c->prix_specifique
-                        : null,
-                    'actif'           => $c->actif,
-                ])
+            // Stocks groupés par qualité — utile pour afficher
+            // "1ère qualité : 500 unités / 2ème qualité : 120 unités"
+            'stocks_par_qualite' => $this->whenLoaded('stocks', fn() =>
+                $this->stocks
+                    ->groupBy('classement_id')
+                    ->map(fn($groupe, $classementId) => [
+                        'classement_id' => $classementId,
+                        'qualite'       => $groupe->first()->classement?->qualite->value,
+                        'libelle'       => $groupe->first()->classement?->label(),
+                        'stock_total'   => (float) $groupe->sum('stock_total'),
+                    ])
+                    ->values()
             ),
             'created_at'  => $this->created_at?->toDateString(),
         ];

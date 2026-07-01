@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
-
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 /**
  * Contrôleur de base — réponses JSON standardisées.
  *
@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
  */
 abstract class BaseApiController extends Controller
 {
+    use AuthorizesRequests; 
     // ── Réponse succès ─────────────────────────────────────
     protected function success(
         mixed  $data    = null,

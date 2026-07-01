@@ -68,15 +68,11 @@ class Stock extends Model
     /**
      * Résolution polymorphique typée avec PHP 8.3 match.
      */
-    public function entite(): BelongsTo
+    // Remplacer la méthode entite() actuelle par :
+
+    public function entite(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
-        return match($this->getRawOriginal('entite_type')) {
-            'matiere' => $this->belongsTo(MatierePremiere::class, 'entite_id'),
-            'produit' => $this->belongsTo(Produit::class, 'entite_id'),
-            default   => throw new \LogicException(
-                "Type d'entité inconnu : {$this->entite_type}"
-            ),
-        };
+        return $this->morphTo('entite', 'entite_type', 'entite_id');
     }
 
     // ── Méthodes métier ────────────────────────────────────

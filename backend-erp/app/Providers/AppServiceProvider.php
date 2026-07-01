@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * LARAVEL 13 :
@@ -54,7 +55,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth', function (Request $request) {
             return Limit::perMinute(5)->by($request->ip());
         });
-
+        Relation::morphMap([
+            'produit' => \App\Models\Produit::class,
+            'matiere' => \App\Models\MatierePremiere::class,
+        ]);
         // ── Queue routing Laravel 13 ─────────────────────────
         Queue::route([
             // Les Jobs seront créés dans une Phase 2

@@ -1,21 +1,19 @@
 <?php
-// app/Http/Controllers/Api/Catalogue/ProduitController.php
 
 namespace App\Http\Controllers\Api\Catalogue;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\ProduitResource;
 use App\Models\Produit;
-use App\Models\ClassementProduit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ProduitController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Produit::with('categorie', 'classements');
+        // 'stocks.classement' pour avoir qualite+libelle dans stocks_par_qualite
+        $query = Produit::with('categorie', 'stocks.classement');
 
         if ($request->filled('categorie_id')) {
             $query->where('categorie_id', $request->categorie_id);
@@ -43,6 +41,8 @@ class ProduitController extends BaseApiController
 
     public function store(Request $request): JsonResponse
     {
+        // La création de produit ne crée plus de classements
+        // (les classements sont globaux, gérés par ClassementSeeder)
         $validated = $request->validate([
             'nomencla'     => ['required', 'string', 'max:30', 'unique:produits,nomencla'],
             'designation'  => ['required', 'string', 'max:150'],
@@ -51,37 +51,20 @@ class ProduitController extends BaseApiController
             'format'       => ['nullable', 'string', 'max:20'],
             'unite'        => ['required', 'string', 'max:10'],
             'colisage'     => ['required', 'numeric', 'min:1'],
-            'poids'         => ['required', 'string', 'max:10'],
-            'seuil'         => ['nullable', 'numeric', 'min:0'],
-            'classements'  => ['nullable', 'array'],
-            'classements.*.qualite'         => ['required', 'in:1er,2e,casse'],
-            'classements.*.prix_specifique' => ['nullable', 'numeric', 'min:0'],
+            'poids'        => ['required', 'string', 'max:10'],
+            'seuil'        => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $produit = DB::transaction(function () use ($validated) {
-            $classements = $validated['classements'] ?? [];
-            unset($validated['classements']);
+        $produit = Produit::create($validated);
 
-            $produit = Produit::create($validated);
-
-            foreach ($classements as $classement) {
-                ClassementProduit::create([
-                    'produit_id'      => $produit->id,
-                    'qualite'         => $classement['qualite'],
-                    'prix_specifique' => $classement['prix_specifique'] ?? null,
-                    'actif'           => true,
-                ]);
-            }
-
-            return $produit->load('categorie', 'classements');
-        });
-
-        return $this->created(new ProduitResource($produit));
+        return $this->created(
+            new ProduitResource($produit->load('categorie'))
+        );
     }
 
     public function show(Produit $produit): JsonResponse
     {
-        $produit->load('categorie', 'classements');
+        $produit->load('categorie', 'stocks.classement');
 
         return $this->success(new ProduitResource($produit));
     }
@@ -94,14 +77,14 @@ class ProduitController extends BaseApiController
             'format'       => ['nullable', 'string', 'max:20'],
             'colisage'     => ['sometimes', 'numeric', 'min:1'],
             'poids'        => ['sometimes', 'string', 'max:10'],
-            'seuil'         => ['sometimes', 'numeric', 'min:0'],
+            'seuil'        => ['sometimes', 'numeric', 'min:0'],
             'actif'        => ['sometimes', 'boolean'],
         ]);
 
         $produit->update($validated);
 
         return $this->success(
-            new ProduitResource($produit->fresh('categorie', 'classements')),
+            new ProduitResource($produit->fresh('categorie', 'stocks.classement')),
             'Produit mis à jour.'
         );
     }
