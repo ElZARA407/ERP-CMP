@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Commercial/ContratController.php
 
 namespace App\Http\Controllers\Api\Commercial;
 
@@ -15,7 +14,7 @@ class ContratController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Contrat::with('client', 'lignes.classement.produit');
+        $query = Contrat::with('client', 'lignes.produit', 'lignes.classement');
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -41,17 +40,14 @@ class ContratController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'client_id'                      => ['required', 'exists:clients,id'],
-            'mois'                           => [
-                'required',
-                'string',
-                'regex:/^\d{4}-(0[1-9]|1[0-2])$/',
-            ],
-            'lignes'                         => ['required', 'array', 'min:1'],
-            'lignes.*.classement_id'         => ['required', 'exists:classement_produits,id'],
+            'client_id' => ['required', 'exists:clients,id'],
+            'mois' => ['required', 'string', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'lignes' => ['required', 'array', 'min:1'],
+            'lignes.*.produit_id' => ['required', 'exists:produits,id'],
+            'lignes.*.classement_id' => ['required', 'exists:classement_produits,id'],
             'lignes.*.quantite_contractuelle' => ['required', 'numeric', 'min:0.001'],
-            'lignes.*.frequence'             => ['required', 'in:hebdomadaire,bimensuel,mensuel'],
-            'lignes.*.prix_unitaire'         => ['required', 'numeric', 'min:0'],
+            'lignes.*.frequence' => ['required', 'in:hebdomadaire,bimensuel,mensuel'],
+            'lignes.*.prix_unitaire' => ['required', 'numeric', 'min:0'],
         ]);
 
         $contrat = DB::transaction(function () use ($validated) {
@@ -59,9 +55,9 @@ class ContratController extends BaseApiController
             unset($validated['lignes']);
 
             $contrat = Contrat::create([
-                'numero'    => Contrat::generateReference('CTR'),
+                'numero' => Contrat::generateReference('CTR'),
                 ...$validated,
-                'actif'     => true,
+                'actif' => true,
             ]);
 
             foreach ($lignes as $ligne) {
@@ -69,11 +65,11 @@ class ContratController extends BaseApiController
                     'contrat_id' => $contrat->id,
                     ...$ligne,
                     'quantite_livree_ytd' => 0,
-                    'statut'             => 'disponible',
+                    'statut' => 'disponible',
                 ]);
             }
 
-            return $contrat->load('client', 'lignes.classement.produit');
+            return $contrat->load('client', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new ContratResource($contrat));
@@ -81,7 +77,7 @@ class ContratController extends BaseApiController
 
     public function show(Contrat $contrat): JsonResponse
     {
-        $contrat->load('client', 'lignes.classement.produit');
+        $contrat->load('client', 'lignes.produit', 'lignes.classement');
 
         return $this->success(new ContratResource($contrat));
     }
@@ -95,8 +91,8 @@ class ContratController extends BaseApiController
         $contrat->update($validated);
 
         return $this->success(
-            new ContratResource($contrat->fresh('client', 'lignes')),
-            'Contrat mis à jour.'
+            new ContratResource($contrat->fresh('client', 'lignes.produit', 'lignes.classement')),
+            'Contrat mis a jour.'
         );
     }
 
@@ -104,6 +100,6 @@ class ContratController extends BaseApiController
     {
         $contrat->update(['actif' => false]);
 
-        return $this->success(null, 'Contrat désactivé.');
+        return $this->success(null, 'Contrat desactive.');
     }
 }

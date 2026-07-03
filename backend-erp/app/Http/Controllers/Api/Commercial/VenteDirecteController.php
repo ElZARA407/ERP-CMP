@@ -1,12 +1,11 @@
 <?php
-// app/Http/Controllers/Api/Commercial/VenteDirecteController.php
 
 namespace App\Http\Controllers\Api\Commercial;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\VenteDirecteResource;
-use App\Models\VenteDirecte;
 use App\Models\LigneVenteDirecte;
+use App\Models\VenteDirecte;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,43 +44,45 @@ class VenteDirecteController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'client_id'              => ['required', 'exists:clients,id'],
-            'date'                   => ['required', 'date'],
-            'location_id'            => ['required', 'exists:locations,id'],
-            'lignes'                 => ['required', 'array', 'min:1'],
+            'client_id' => ['required', 'exists:clients,id'],
+            'date' => ['required', 'date'],
+            'location_id' => ['required', 'exists:locations,id'],
+            'lignes' => ['required', 'array', 'min:1'],
+            'lignes.*.produit_id' => ['required', 'exists:produits,id'],
             'lignes.*.classement_id' => ['required', 'exists:classement_produits,id'],
-            'lignes.*.quantite'      => ['required', 'numeric', 'min:0.001'],
+            'lignes.*.quantite' => ['required', 'numeric', 'min:0.001'],
             'lignes.*.prix_unitaire' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $vente = DB::transaction(function () use ($validated) {
+        $vente = DB::transaction(function () use ($validated, $request) {
             $lignes = $validated['lignes'];
             unset($validated['lignes']);
 
             $total = array_sum(array_map(
-                fn($l) => round($l['quantite'] * $l['prix_unitaire'], 2),
+                fn ($ligne) => round($ligne['quantite'] * $ligne['prix_unitaire'], 2),
                 $lignes
             ));
 
             $vente = VenteDirecte::create([
-                'numero'     => VenteDirecte::generateReference('VD'),
+                'numero' => VenteDirecte::generateReference('VD'),
                 ...$validated,
-                'statut'     => 'brouillon',
-                'total'      => $total,
+                'statut' => 'brouillon',
+                'total' => $total,
                 'created_by' => $request->user()->id,
             ]);
 
             foreach ($lignes as $ligne) {
                 LigneVenteDirecte::create([
                     'vente_directe_id' => $vente->id,
-                    'classement_id'    => $ligne['classement_id'],
-                    'quantite'         => $ligne['quantite'],
-                    'prix_unitaire'    => $ligne['prix_unitaire'],
-                    'total_ligne'      => round($ligne['quantite'] * $ligne['prix_unitaire'], 2),
+                    'produit_id' => $ligne['produit_id'],
+                    'classement_id' => $ligne['classement_id'],
+                    'quantite' => $ligne['quantite'],
+                    'prix_unitaire' => $ligne['prix_unitaire'],
+                    'total_ligne' => round($ligne['quantite'] * $ligne['prix_unitaire'], 2),
                 ]);
             }
 
-            return $vente->load('client', 'location', 'lignes.classement.produit');
+            return $vente->load('client', 'location', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new VenteDirecteResource($vente));
@@ -89,7 +90,7 @@ class VenteDirecteController extends BaseApiController
 
     public function show(VenteDirecte $venteDirecte): JsonResponse
     {
-        $venteDirecte->load('client', 'location', 'lignes.classement.produit', 'createur');
+        $venteDirecte->load('client', 'location', 'lignes.produit', 'lignes.classement', 'createur');
 
         return $this->success(new VenteDirecteResource($venteDirecte));
     }
@@ -97,32 +98,32 @@ class VenteDirecteController extends BaseApiController
     public function update(Request $request, VenteDirecte $venteDirecte): JsonResponse
     {
         if ($venteDirecte->statut !== 'brouillon') {
-            return $this->error('Cette vente ne peut plus être modifiée.', 422);
+            return $this->error('Cette vente ne peut plus etre modifiee.', 422);
         }
 
         $venteDirecte->update($request->only(['date', 'location_id']));
 
         return $this->success(
-            new VenteDirecteResource($venteDirecte->fresh('client', 'location')),
-            'Vente directe mise à jour.'
+            new VenteDirecteResource($venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement')),
+            'Vente directe mise a jour.'
         );
     }
 
     public function destroy(VenteDirecte $venteDirecte): JsonResponse
     {
         if ($venteDirecte->statut !== 'brouillon') {
-            return $this->error('Seule une vente en brouillon peut être supprimée.', 422);
+            return $this->error('Seule une vente en brouillon peut etre supprimee.', 422);
         }
 
         $venteDirecte->delete();
 
-        return $this->success(null, 'Vente directe supprimée.');
+        return $this->success(null, 'Vente directe supprimee.');
     }
 
     public function valider(VenteDirecte $venteDirecte): JsonResponse
     {
         if ($venteDirecte->statut !== 'brouillon') {
-            return $this->error('Cette vente est déjà validée.', 422);
+            return $this->error('Cette vente est deja validee.', 422);
         }
 
         if ($venteDirecte->lignes()->count() === 0) {
@@ -132,8 +133,8 @@ class VenteDirecteController extends BaseApiController
         $venteDirecte->update(['statut' => 'validee']);
 
         return $this->success(
-            new VenteDirecteResource($venteDirecte->fresh()),
-            'Vente directe validée.'
+            new VenteDirecteResource($venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement')),
+            'Vente directe validee.'
         );
     }
 }

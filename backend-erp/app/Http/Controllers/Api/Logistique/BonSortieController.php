@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Logistique/BonSortieController.php
 
 namespace App\Http\Controllers\Api\Logistique;
 
@@ -54,14 +53,15 @@ class BonSortieController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'location_id'            => ['required', 'exists:locations,id'],
-            'date'                   => ['required', 'date'],
-            'motif'                  => ['required', 'in:usage_interne,perte,echantillon,don,autre'],
-            'client_id'              => ['nullable', 'exists:clients,id'],
-            'observations'           => ['nullable', 'string'],
-            'lignes'                 => ['required', 'array', 'min:1'],
+            'location_id' => ['required', 'exists:locations,id'],
+            'date' => ['required', 'date'],
+            'motif' => ['required', 'in:usage_interne,perte,echantillon,don,autre'],
+            'client_id' => ['nullable', 'exists:clients,id'],
+            'observations' => ['nullable', 'string'],
+            'lignes' => ['required', 'array', 'min:1'],
+            'lignes.*.produit_id' => ['required', 'exists:produits,id'],
             'lignes.*.classement_id' => ['required', 'exists:classement_produits,id'],
-            'lignes.*.quantite'      => ['required', 'numeric', 'min:0.001'],
+            'lignes.*.quantite' => ['required', 'numeric', 'min:0.001'],
         ]);
 
         $bon = DB::transaction(function () use ($validated) {
@@ -69,9 +69,9 @@ class BonSortieController extends BaseApiController
             unset($validated['lignes']);
 
             $bon = BonSortie::create([
-                'numero'     => BonSortie::generateReference('BS'),
+                'numero' => BonSortie::generateReference('BS'),
                 ...$validated,
-                'statut'     => 'brouillon',
+                'statut' => 'brouillon',
                 'created_by' => auth()->id(),
             ]);
 
@@ -82,7 +82,7 @@ class BonSortieController extends BaseApiController
                 ]);
             }
 
-            return $bon->load('location', 'client', 'lignes.classement.produit');
+            return $bon->load('location', 'client', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new BonSortieResource($bon));
@@ -90,7 +90,7 @@ class BonSortieController extends BaseApiController
 
     public function show(BonSortie $bonsSortie): JsonResponse
     {
-        $bonsSortie->load('location', 'client', 'lignes.classement.produit', 'createur');
+        $bonsSortie->load('location', 'client', 'lignes.produit', 'lignes.classement', 'createur');
 
         return $this->success(new BonSortieResource($bonsSortie));
     }
@@ -98,57 +98,63 @@ class BonSortieController extends BaseApiController
     public function update(Request $request, BonSortie $bonsSortie): JsonResponse
     {
         if ($bonsSortie->statut !== 'brouillon') {
-            return $this->error('Ce bon de sortie ne peut plus être modifié.', 422);
+            return $this->error('Ce bon de sortie ne peut plus etre modifie.', 422);
         }
 
         $bonsSortie->update($request->only(['observations', 'motif', 'client_id']));
 
         return $this->success(
-            new BonSortieResource($bonsSortie->fresh()),
-            'Bon de sortie mis à jour.'
+            new BonSortieResource($bonsSortie->fresh('location', 'client', 'lignes.produit', 'lignes.classement')),
+            'Bon de sortie mis a jour.'
         );
     }
 
     public function destroy(BonSortie $bonsSortie): JsonResponse
     {
         if ($bonsSortie->statut !== 'brouillon') {
-            return $this->error('Seul un BS en brouillon peut être supprimé.', 422);
+            return $this->error('Seul un BS en brouillon peut etre supprime.', 422);
         }
 
         $bonsSortie->delete();
 
-        return $this->success(null, 'Bon de sortie supprimé.');
+        return $this->success(null, 'Bon de sortie supprime.');
     }
 
     public function valider(BonSortie $bonsSortie): JsonResponse
     {
         if (!$bonsSortie->estValidable()) {
-            return $this->error('Ce bon de sortie ne peut pas être validé.', 422);
+            return $this->error('Ce bon de sortie ne peut pas etre valide.', 422);
         }
 
         DB::transaction(function () use ($bonsSortie) {
+            $bonsSortie->loadMissing('lignes.produit', 'lignes.classement');
+
             foreach ($bonsSortie->lignes as $ligne) {
+                if (!$ligne->produit_id) {
+                    throw new \DomainException('Produit manquant sur une ligne de sortie.');
+                }
+
                 $this->stockService->sortie(
-                    locationId    : $bonsSortie->location_id,
-                    entiteType    : 'produit',
-                    entiteId      : $ligne->classement->produit_id,
-                    quantite      : (float) $ligne->quantite,
-                    referenceType : 'bon_sortie',
-                    referenceId   : $bonsSortie->id,
-                    operateur     : auth()->user(),
-                    classementId  : $ligne->classement_id
+                    locationId: $bonsSortie->location_id,
+                    entiteType: 'produit',
+                    entiteId: $ligne->produit_id,
+                    quantite: (float) $ligne->quantite,
+                    referenceType: 'bon_sortie',
+                    referenceId: $bonsSortie->id,
+                    operateur: auth()->user(),
+                    classementId: $ligne->classement_id
                 );
             }
 
             $bonsSortie->update([
-                'statut'    => 'valide',
+                'statut' => 'valide',
                 'valide_by' => auth()->id(),
             ]);
         });
 
         return $this->success(
-            new BonSortieResource($bonsSortie->fresh()),
-            'Bon de sortie validé. Stocks décrémentés.'
+            new BonSortieResource($bonsSortie->fresh('location', 'client', 'lignes.produit', 'lignes.classement')),
+            'Bon de sortie valide. Stocks decrementes.'
         );
     }
 }

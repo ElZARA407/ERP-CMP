@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Table('lignes_vente_directe')]
 #[Fillable(
-    'vente_directe_id', 'classement_id',
+    'vente_directe_id', 'classement_id','produit_id',
     'quantite', 'prix_unitaire', 'total_ligne'
 )]
 class LigneVenteDirecte extends Model
@@ -30,6 +30,10 @@ class LigneVenteDirecte extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
+    public function produit(): BelongsTo
+    {
+        return $this->belongsTo(Produit::class, 'produit_id');
+    }
     public function venteDirecte(): BelongsTo
     {
         return $this->belongsTo(VenteDirecte::class);

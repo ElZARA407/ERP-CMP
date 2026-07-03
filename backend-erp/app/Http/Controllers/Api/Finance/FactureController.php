@@ -1,14 +1,14 @@
 <?php
-// app/Http/Controllers/Api/Finance/FactureController.php
 
 namespace App\Http\Controllers\Api\Finance;
 
+use App\Enums\ModePaiement;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Finance\PayerFactureRequest;
 use App\Http\Requests\Finance\StoreFactureRequest;
 use App\Http\Resources\FactureResource;
-use App\Enums\ModePaiement;
 use App\Models\Facture;
+use App\Models\Livraison;
 use App\Services\FactureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +43,8 @@ class FactureController extends BaseApiController
             $query->where('date', '<=', $request->date_fin);
         }
 
-        $factures = $query->orderByDesc('date')
+        $factures = $query
+            ->orderByDesc('date')
             ->paginate($request->get('per_page', config('api.per_page')));
 
         return $this->success(
@@ -54,20 +55,20 @@ class FactureController extends BaseApiController
     public function store(StoreFactureRequest $request): JsonResponse
     {
         try {
-            $livraison = \App\Models\Livraison::findOrFail($request->livraison_id);
+            $livraison = Livraison::findOrFail($request->livraison_id);
             $facture = $this->factureService->creerDepuisLivraison($livraison, $request->user());
-        } catch (\DomainException $e) {
-            return $this->error($e->getMessage(), 422);
+        } catch (\DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
         }
 
         return $this->created(
-            new FactureResource($facture->load('client', 'livraison', 'lignes.classement.produit'))
+            new FactureResource($facture->load('client', 'livraison', 'lignes.produit', 'lignes.classement'))
         );
     }
 
     public function show(Facture $facture): JsonResponse
     {
-        $facture->load('client', 'livraison', 'lignes.classement.produit', 'createur');
+        $facture->load('client', 'livraison', 'lignes.produit', 'lignes.classement', 'createur');
 
         return $this->success(new FactureResource($facture));
     }
@@ -78,15 +79,17 @@ class FactureController extends BaseApiController
 
         $facture->update($request->only(['notes', 'echeance_paiement']));
 
-        return $this->success(new FactureResource($facture->fresh()), 'Facture mise à jour.');
+        return $this->success(
+            new FactureResource($facture->fresh('client', 'livraison', 'lignes.produit', 'lignes.classement')),
+            'Facture mise a jour.'
+        );
     }
 
     public function destroy(Facture $facture): JsonResponse
     {
-        return $this->forbidden('Les factures ne peuvent pas être supprimées.');
+        return $this->forbidden('Les factures ne peuvent pas etre supprimees.');
     }
 
-    // ── POST /factures/{id}/payer ─────────────────────────
     public function payer(PayerFactureRequest $request, Facture $facture): JsonResponse
     {
         $this->authorize('payer', $facture);
@@ -97,34 +100,32 @@ class FactureController extends BaseApiController
                 ModePaiement::from($request->mode_paiement),
                 $request->user()
             );
-        } catch (\DomainException $e) {
-            return $this->error($e->getMessage(), 422);
+        } catch (\DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
         }
 
         return $this->success(
-            new FactureResource($facture->fresh()->load('client', 'livraison', 'lignes.classement.produit')),
-            'Paiement enregistré.'
+            new FactureResource($facture->fresh('client', 'livraison', 'lignes.produit', 'lignes.classement')),
+            'Paiement enregistre.'
         );
     }
 
-    // ── POST /factures/{id}/annuler ───────────────────────
     public function annuler(Request $request, Facture $facture): JsonResponse
     {
         $this->authorize('annuler', $facture);
 
         try {
             $this->factureService->annuler($facture, $request->user());
-        } catch (\DomainException $e) {
-            return $this->error($e->getMessage(), 422);
+        } catch (\DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
         }
 
         return $this->success(
-            new FactureResource($facture->fresh()->load('client', 'livraison', 'lignes.classement.produit')),
-            'Facture annulée.'
+            new FactureResource($facture->fresh('client', 'livraison', 'lignes.produit', 'lignes.classement')),
+            'Facture annulee.'
         );
     }
 
-    // ── GET /factures/retards ─────────────────────────────
     public function enRetard(): JsonResponse
     {
         $factures = Facture::enRetard()

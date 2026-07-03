@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Table('lignes_livraison')]
 #[Fillable(
-    'livraison_id', 'ligne_commande_id',
+    'livraison_id','produit_id', 'ligne_commande_id',
     'ligne_vente_directe_id', 'classement_id',
     'quantite_livree'
 )]
@@ -28,6 +28,10 @@ class LigneLivraison extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
+    public function produit(): BelongsTo
+    {
+        return $this->belongsTo(Produit::class, 'produit_id');
+    }
     public function livraison(): BelongsTo
     {
         return $this->belongsTo(Livraison::class);

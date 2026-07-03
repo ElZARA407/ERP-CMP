@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Table('bp_obtenues')]
 #[Fillable(
-    'bp_session_id', 'classement_id',
+    'bp_session_id', 'classement_id','produit_id',
     'quantite_produite', 'destination_location_id'
 )]
 class BpObtenue extends Model
@@ -27,6 +27,10 @@ class BpObtenue extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
+    public function produit(): BelongsTo
+    {
+        return $this->belongsTo(Produit::class, 'produit_id');
+    }
     public function session(): BelongsTo
     {
         return $this->belongsTo(BpSession::class, 'bp_session_id');

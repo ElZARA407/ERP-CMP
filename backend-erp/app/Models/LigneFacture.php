@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Table('ligne_factures')]
 #[Fillable(
-    'facture_id', 'classement_id',
+    'facture_id', 'classement_id','produit_id',
     'quantite', 'prix_unitaire', 'total_ligne'
 )]
 class LigneFacture extends Model
@@ -29,6 +29,10 @@ class LigneFacture extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
+    public function produit(): BelongsTo
+    {
+        return $this->belongsTo(Produit::class, 'produit_id');
+    }
     public function facture(): BelongsTo
     {
         return $this->belongsTo(Facture::class);

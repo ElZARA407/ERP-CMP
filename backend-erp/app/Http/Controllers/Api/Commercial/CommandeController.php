@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Commercial/CommandeController.php
 
 namespace App\Http\Controllers\Api\Commercial;
 
@@ -14,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class CommandeController extends BaseApiController
 {
-    // ── GET /commandes ─────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
         $query = Commande::with('client', 'location', 'createur');
@@ -33,7 +31,7 @@ class CommandeController extends BaseApiController
 
         if ($request->boolean('en_retard')) {
             $query->nonLivrees()
-                  ->where('date_livraison_prevue', '<', now());
+                ->where('date_livraison_prevue', '<', now());
         }
 
         if ($request->filled('date_debut')) {
@@ -53,49 +51,47 @@ class CommandeController extends BaseApiController
         );
     }
 
-    // ── POST /commandes ────────────────────────────────────
     public function store(StoreCommandeRequest $request): JsonResponse
     {
         $commande = DB::transaction(function () use ($request) {
             $data = $request->validated();
 
             $commande = Commande::create([
-                'numero'                => Commande::generateReference('CMD'),
-                'client_id'             => $data['client_id'],
-                'date'                  => $data['date'],
+                'numero' => Commande::generateReference('CMD'),
+                'client_id' => $data['client_id'],
+                'date' => $data['date'],
                 'date_livraison_prevue' => $data['date_livraison_prevue'] ?? null,
-                'location_id'           => $data['location_id'],
-                'echeance'              => $data['echeance'],
-                'statut'                => 'non_livree',
-                'created_by'            => $request->user()->id,
+                'location_id' => $data['location_id'],
+                'echeance' => $data['echeance'],
+                'statut' => 'non_livree',
+                'created_by' => $request->user()->id,
             ]);
 
             foreach ($data['lignes'] as $ligne) {
                 LigneCommande::create([
-                    'commande_id'       => $commande->id,
-                    'classement_id'     => $ligne['classement_id'],
-                    'quantite'          => $ligne['quantite'],
+                    'commande_id' => $commande->id,
+                    'produit_id' => $ligne['produit_id'],
+                    'classement_id' => $ligne['classement_id'],
+                    'quantite' => $ligne['quantite'],
                     'quantite_restante' => $ligne['quantite'],
-                    'prix_unitaire'     => $ligne['prix_unitaire'],
-                    'etat'              => 'disponible',
+                    'prix_unitaire' => $ligne['prix_unitaire'],
+                    'etat' => 'disponible',
                 ]);
             }
 
-            return $commande->load('client', 'location', 'lignes.classement.produit');
+            return $commande->load('client', 'location', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new CommandeResource($commande));
     }
 
-    // ── GET /commandes/{id} ────────────────────────────────
     public function show(Commande $commande): JsonResponse
     {
-        $commande->load('client', 'location', 'lignes.classement.produit', 'createur');
+        $commande->load('client', 'location', 'lignes.produit', 'lignes.classement', 'createur');
 
         return $this->success(new CommandeResource($commande));
     }
 
-    // ── PUT /commandes/{id} ───────────────────────────────
     public function update(Request $request, Commande $commande): JsonResponse
     {
         $this->authorize('update', $commande);
@@ -107,48 +103,47 @@ class CommandeController extends BaseApiController
         ]));
 
         return $this->success(
-            new CommandeResource($commande->fresh('client', 'location')),
-            'Commande mise à jour.'
+            new CommandeResource($commande->fresh('client', 'location', 'lignes.produit', 'lignes.classement')),
+            'Commande mise a jour.'
         );
     }
 
-    // ── DELETE /commandes/{id} ────────────────────────────
     public function destroy(Commande $commande): JsonResponse
     {
         $this->authorize('delete', $commande);
 
-        return $this->forbidden('Les commandes ne peuvent pas être supprimées.');
+        return $this->forbidden('Les commandes ne peuvent pas etre supprimees.');
     }
 
-    // ── POST /commandes/{id}/duplicate ────────────────────
     public function duplicate(Request $request, Commande $commande): JsonResponse
     {
         $nouvelle = DB::transaction(function () use ($commande, $request) {
             $commande->load('lignes');
 
             $nouvelle = Commande::create([
-                'numero'                => Commande::generateReference('CMD'),
-                'client_id'             => $commande->client_id,
-                'date'                  => now(),
+                'numero' => Commande::generateReference('CMD'),
+                'client_id' => $commande->client_id,
+                'date' => now(),
                 'date_livraison_prevue' => null,
-                'location_id'           => $commande->location_id,
-                'echeance'              => $commande->echeance,
-                'statut'                => 'non_livree',
-                'created_by'            => $request->user()->id,
+                'location_id' => $commande->location_id,
+                'echeance' => $commande->echeance,
+                'statut' => 'non_livree',
+                'created_by' => $request->user()->id,
             ]);
 
             foreach ($commande->lignes as $ligne) {
                 LigneCommande::create([
-                    'commande_id'       => $nouvelle->id,
-                    'classement_id'     => $ligne->classement_id,
-                    'quantite'          => $ligne->quantite,
+                    'commande_id' => $nouvelle->id,
+                    'produit_id' => $ligne->produit_id,
+                    'classement_id' => $ligne->classement_id,
+                    'quantite' => $ligne->quantite,
                     'quantite_restante' => $ligne->quantite,
-                    'prix_unitaire'     => $ligne->prix_unitaire,
-                    'etat'              => 'disponible',
+                    'prix_unitaire' => $ligne->prix_unitaire,
+                    'etat' => 'disponible',
                 ]);
             }
 
-            return $nouvelle->load('client', 'location', 'lignes');
+            return $nouvelle->load('client', 'location', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new CommandeResource($nouvelle));

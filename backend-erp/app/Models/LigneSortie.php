@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Table('ligne_sorties')]
-#[Fillable('bon_sortie_id', 'classement_id', 'quantite')]
+#[Fillable('bon_sortie_id', 'classement_id','produit_id', 'quantite')]
 class LigneSortie extends Model
 {
     use HasFactory;
@@ -24,6 +24,10 @@ class LigneSortie extends Model
     }
 
     // ── Relations ──────────────────────────────────────────
+    public function produit(): BelongsTo
+    {
+        return $this->belongsTo(Produit::class, 'produit_id');
+    }
     public function bonSortie(): BelongsTo
     {
         return $this->belongsTo(BonSortie::class);

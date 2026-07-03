@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Commercial/LigneContratController.php
 
 namespace App\Http\Controllers\Api\Commercial;
 
@@ -13,7 +12,7 @@ class LigneContratController extends BaseApiController
 {
     public function index(Contrat $contrat): JsonResponse
     {
-        $lignes = $contrat->lignes()->with('classement.produit')->get();
+        $lignes = $contrat->lignes()->with('produit', 'classement')->get();
 
         return $this->success($lignes);
     }
@@ -21,41 +20,44 @@ class LigneContratController extends BaseApiController
     public function store(Request $request, Contrat $contrat): JsonResponse
     {
         $validated = $request->validate([
-            'classement_id'          => ['required', 'exists:classement_produits,id'],
+            'produit_id' => ['required', 'exists:produits,id'],
+            'classement_id' => ['required', 'exists:classement_produits,id'],
             'quantite_contractuelle' => ['required', 'numeric', 'min:0.001'],
-            'frequence'              => ['required', 'in:hebdomadaire,bimensuel,mensuel'],
-            'prix_unitaire'          => ['required', 'numeric', 'min:0'],
+            'frequence' => ['required', 'in:hebdomadaire,bimensuel,mensuel'],
+            'prix_unitaire' => ['required', 'numeric', 'min:0'],
         ]);
 
         $ligne = LigneContrat::create([
             'contrat_id' => $contrat->id,
             ...$validated,
             'quantite_livree_ytd' => 0,
-            'statut'             => 'disponible',
+            'statut' => 'disponible',
         ]);
 
-        return $this->created($ligne->load('classement.produit'));
+        return $this->created($ligne->load('produit', 'classement'));
     }
 
     public function show(LigneContrat $ligneContrat): JsonResponse
     {
-        return $this->success($ligneContrat->load('classement.produit', 'contrat'));
+        return $this->success($ligneContrat->load('produit', 'classement', 'contrat'));
     }
 
     public function update(Request $request, LigneContrat $ligneContrat): JsonResponse
     {
         $validated = $request->validate([
+            'produit_id' => ['sometimes', 'exists:produits,id'],
+            'classement_id' => ['sometimes', 'exists:classement_produits,id'],
             'quantite_contractuelle' => ['sometimes', 'numeric', 'min:0.001'],
-            'frequence'              => ['sometimes', 'in:hebdomadaire,bimensuel,mensuel'],
-            'prix_unitaire'          => ['sometimes', 'numeric', 'min:0'],
-            'statut'                 => ['sometimes', 'in:disponible,indisponible,en_cours'],
+            'frequence' => ['sometimes', 'in:hebdomadaire,bimensuel,mensuel'],
+            'prix_unitaire' => ['sometimes', 'numeric', 'min:0'],
+            'statut' => ['sometimes', 'in:disponible,indisponible,en_cours'],
         ]);
 
         $ligneContrat->update($validated);
 
         return $this->success(
-            $ligneContrat->fresh('classement.produit'),
-            'Ligne contrat mise à jour.'
+            $ligneContrat->fresh('produit', 'classement'),
+            'Ligne contrat mise a jour.'
         );
     }
 
@@ -63,6 +65,6 @@ class LigneContratController extends BaseApiController
     {
         $ligneContrat->delete();
 
-        return $this->success(null, 'Ligne supprimée.');
+        return $this->success(null, 'Ligne supprimee.');
     }
 }

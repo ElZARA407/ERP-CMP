@@ -1,5 +1,4 @@
 <?php
-// app/Http/Resources/LigneCommandeResource.php
 
 namespace App\Http\Resources;
 
@@ -11,23 +10,31 @@ class LigneCommandeResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'                => $this->id,
-            'classement'        => $this->whenLoaded('classement', fn() => [
-                'id'          => $this->classement->id,
-                'qualite'     => $this->classement->qualite->value,
-                'designation' => $this->classement->designation(),
-                'produit'     => [
-                    'id'        => $this->classement->produit->id,
-                    'nomencla'  => $this->classement->produit->nomencla,
-                    'designation'=> $this->classement->produit->designation,
-                ],
+            'id' => $this->id,
+            'produit_id' => $this->produit_id,
+            'classement_id' => $this->classement_id,
+
+            'produit' => $this->whenLoaded('produit', fn () => [
+                'id' => $this->produit->id,
+                'nomencla' => $this->produit->nomencla,
+                'designation' => $this->produit->designation,
             ]),
-            'quantite'          => (float) $this->quantite,
+
+            'classement' => $this->whenLoaded('classement', fn () => [
+                'id' => $this->classement->id,
+                'qualite' => $this->classement->qualite?->value,
+                'qualite_libelle' => method_exists($this->classement, 'label')
+                    ? $this->classement->label()
+                    : ($this->classement->libelle ?? null),
+                'libelle' => $this->classement->libelle,
+            ]),
+
+            'quantite' => (float) $this->quantite,
             'quantite_restante' => (float) $this->quantite_restante,
-            'prix_unitaire'     => (float) $this->prix_unitaire,
-            'total_ligne'       => $this->totalLigne(),
-            'etat'              => $this->etat,
-            'est_soldee'        => $this->estSoldee(),
+            'prix_unitaire' => (float) $this->prix_unitaire,
+            'total_ligne' => $this->totalLigne(),
+            'etat' => $this->etat,
+            'est_soldee' => $this->estSoldee(),
         ];
     }
 }

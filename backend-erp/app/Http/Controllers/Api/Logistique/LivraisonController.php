@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/Logistique/LivraisonController.php
 
 namespace App\Http\Controllers\Api\Logistique;
 
@@ -35,14 +34,13 @@ class LivraisonController extends BaseApiController
         }
 
         if ($request->has('est_facturee')) {
-            if ($request->boolean('est_facturee')) {
-                $query->whereHas('facture');
-            } else {
-                $query->whereDoesntHave('facture');
-            }
+            $request->boolean('est_facturee')
+                ? $query->whereHas('facture')
+                : $query->whereDoesntHave('facture');
         }
 
-        $livraisons = $query->orderByDesc('created_at')
+        $livraisons = $query
+            ->orderByDesc('created_at')
             ->paginate($request->get('per_page', config('api.per_page')));
 
         return $this->success(
@@ -53,45 +51,47 @@ class LivraisonController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_type'            => ['required', 'in:commande,vente_directe'],
-            'source_id'              => ['required', 'integer'],
-            'client_id'              => ['required', 'exists:clients,id'],
-            'reference_bc'           => ['nullable', 'string', 'max:30'],
-            'chauffeur'              => ['nullable', 'string', 'max:100'],
-            'vehicule'               => ['nullable', 'string', 'max:30'],
-            'observations'           => ['nullable', 'string'],
-            'lignes'                 => ['required', 'array', 'min:1'],
-            'lignes.*.ligne_commande_id'      => ['nullable', 'exists:lignes_commande,id'],
+            'source_type' => ['required', 'in:commande,vente_directe'],
+            'source_id' => ['required', 'integer'],
+            'client_id' => ['required', 'exists:clients,id'],
+            'reference_bc' => ['nullable', 'string', 'max:30'],
+            'chauffeur' => ['nullable', 'string', 'max:100'],
+            'vehicule' => ['nullable', 'string', 'max:30'],
+            'observations' => ['nullable', 'string'],
+            'lignes' => ['required', 'array', 'min:1'],
+            'lignes.*.ligne_commande_id' => ['nullable', 'exists:ligne_commandes,id'],
             'lignes.*.ligne_vente_directe_id' => ['nullable', 'exists:lignes_vente_directe,id'],
-            'lignes.*.classement_id'          => ['required', 'exists:classement_produits,id'],
-            'lignes.*.quantite_livree'         => ['required', 'numeric', 'min:0.001'],
+            'lignes.*.produit_id' => ['required', 'exists:produits,id'],
+            'lignes.*.classement_id' => ['required', 'exists:classement_produits,id'],
+            'lignes.*.quantite_livree' => ['required', 'numeric', 'min:0.001'],
         ]);
 
         $livraison = DB::transaction(function () use ($validated) {
             $livraison = Livraison::create([
-                'numero'       => Livraison::generateReference('BL'),
-                'source_type'  => $validated['source_type'],
-                'source_id'    => $validated['source_id'],
-                'client_id'    => $validated['client_id'],
+                'numero' => Livraison::generateReference('BL'),
+                'source_type' => $validated['source_type'],
+                'source_id' => $validated['source_id'],
+                'client_id' => $validated['client_id'],
                 'reference_bc' => $validated['reference_bc'] ?? null,
-                'chauffeur'    => $validated['chauffeur'] ?? null,
-                'vehicule'     => $validated['vehicule'] ?? null,
+                'chauffeur' => $validated['chauffeur'] ?? null,
+                'vehicule' => $validated['vehicule'] ?? null,
                 'observations' => $validated['observations'] ?? null,
-                'statut'       => 'prepare',
-                'created_by'   => auth()->id(),
+                'statut' => 'prepare',
+                'created_by' => auth()->id(),
             ]);
 
             foreach ($validated['lignes'] as $ligne) {
                 LigneLivraison::create([
-                    'livraison_id'             => $livraison->id,
-                    'ligne_commande_id'        => $ligne['ligne_commande_id'] ?? null,
-                    'ligne_vente_directe_id'   => $ligne['ligne_vente_directe_id'] ?? null,
-                    'classement_id'            => $ligne['classement_id'],
-                    'quantite_livree'          => $ligne['quantite_livree'],
+                    'livraison_id' => $livraison->id,
+                    'ligne_commande_id' => $ligne['ligne_commande_id'] ?? null,
+                    'ligne_vente_directe_id' => $ligne['ligne_vente_directe_id'] ?? null,
+                    'produit_id' => $ligne['produit_id'],
+                    'classement_id' => $ligne['classement_id'],
+                    'quantite_livree' => $ligne['quantite_livree'],
                 ]);
             }
 
-            return $livraison->load('client', 'lignes.classement.produit');
+            return $livraison->load('client', 'lignes.produit', 'lignes.classement');
         });
 
         return $this->created(new LivraisonResource($livraison));
@@ -99,7 +99,7 @@ class LivraisonController extends BaseApiController
 
     public function show(Livraison $livraison): JsonResponse
     {
-        $livraison->load('client', 'lignes.classement.produit', 'createur', 'facture');
+        $livraison->load('client', 'lignes.produit', 'lignes.classement', 'createur', 'facture');
 
         return $this->success(new LivraisonResource($livraison));
     }
@@ -107,33 +107,38 @@ class LivraisonController extends BaseApiController
     public function update(Request $request, Livraison $livraison): JsonResponse
     {
         if ($livraison->statut === 'livre') {
-            return $this->error('Une livraison confirmée ne peut pas être modifiée.', 422);
+            return $this->error('Une livraison confirmee ne peut pas etre modifiee.', 422);
         }
 
         $livraison->update($request->only([
-            'chauffeur', 'vehicule', 'observations', 'date_livraison',
+            'chauffeur',
+            'vehicule',
+            'observations',
+            'date_livraison',
         ]));
 
-        return $this->success(new LivraisonResource($livraison->fresh()), 'Livraison mise à jour.');
+        return $this->success(
+            new LivraisonResource($livraison->fresh('client', 'lignes.produit', 'lignes.classement')),
+            'Livraison mise a jour.'
+        );
     }
 
     public function destroy(Livraison $livraison): JsonResponse
     {
-        return $this->forbidden('Les livraisons ne peuvent pas être supprimées.');
+        return $this->forbidden('Les livraisons ne peuvent pas etre supprimees.');
     }
 
-    // ── POST /livraisons/{id}/confirmer ───────────────────
     public function confirmer(Livraison $livraison): JsonResponse
     {
         try {
             $this->livraisonService->confirmerLivraison($livraison, auth()->user());
-        } catch (\DomainException $e) {
-            return $this->error($e->getMessage(), 422);
+        } catch (\DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
         }
 
         return $this->success(
-            new LivraisonResource($livraison->fresh()->load('client', 'lignes')),
-            'Livraison confirmée. Stocks décrementés.'
+            new LivraisonResource($livraison->fresh()->load('client', 'lignes.produit', 'lignes.classement')),
+            'Livraison confirmee. Stocks decrementes.'
         );
     }
 }
