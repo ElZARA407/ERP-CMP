@@ -19,11 +19,7 @@ class LocationsSeeder extends Seeder
                 'type' => Location::TYPE_BUREAU,
             ],
             [
-                'nom'  => 'Usine Andraharo',
-                'type' => Location::TYPE_USINE,
-            ],
-            [
-                'nom'  => 'Usine Tanjombato',
+                'nom'  => 'Usine Imerikasinina',
                 'type' => Location::TYPE_USINE,
             ],
         ];

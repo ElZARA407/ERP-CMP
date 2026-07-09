@@ -19,10 +19,10 @@ class DatabaseSeeder extends Seeder
 
             // Vague 1 — Dépend de Vague 0
             AdminSeeder::class,
-            ProduitSeeder::class,
-            MatierePremiereSeeder::class,
+            // ProduitSeeder::class,
+            // MatierePremiereSeeder::class,
             ClassementProduitSeeder::class,
-            StockSeeder::class,
+            // StockSeeder::class,
 
             // Optionnel en dev/staging
             // DemoDataSeeder::class,

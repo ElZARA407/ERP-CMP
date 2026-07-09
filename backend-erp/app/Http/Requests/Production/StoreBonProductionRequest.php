@@ -15,11 +15,11 @@ class StoreBonProductionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'date'               => ['required', 'date'],
-            'location_id'        => ['required', 'exists:locations,id'],
-            'produit_id'         => ['required', 'exists:produits,id'],
-            'machine_production' => ['required', 'string', 'max:100'],
-            'quantite_cible'     => ['required', 'numeric', 'min:0.001'],
+            'date' => ['required', 'date'],
+            'location_id' => ['required', 'exists:locations,id'],
+            'produit_id' => ['required', 'exists:produits,id'],
+            'machine_id' => ['required', 'exists:machines,id'],
+            'quantite_cible' => ['required', 'numeric', 'min:0.001'],
         ];
     }
 }

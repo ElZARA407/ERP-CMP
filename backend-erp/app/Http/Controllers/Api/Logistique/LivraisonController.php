@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\Logistique;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\LivraisonResource;
-use App\Models\LigneLivraison;
 use App\Models\Livraison;
+use App\Models\Utilisateur;
 use App\Services\LivraisonService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,8 +81,7 @@ class LivraisonController extends BaseApiController
             ]);
 
             foreach ($validated['lignes'] as $ligne) {
-                LigneLivraison::create([
-                    'livraison_id' => $livraison->id,
+                $livraison->lignes()->create([
                     'ligne_commande_id' => $ligne['ligne_commande_id'] ?? null,
                     'ligne_vente_directe_id' => $ligne['ligne_vente_directe_id'] ?? null,
                     'produit_id' => $ligne['produit_id'],
@@ -128,17 +127,43 @@ class LivraisonController extends BaseApiController
         return $this->forbidden('Les livraisons ne peuvent pas etre supprimees.');
     }
 
-    public function confirmer(Livraison $livraison): JsonResponse
+    public function confirmer(Request $request, Livraison $livraison): JsonResponse
     {
+        $operateur = $request->user();
+
+        if (! $operateur instanceof Utilisateur) {
+            return $this->error('Utilisateur authentifie invalide.', 422);
+        }
+
         try {
-            $this->livraisonService->confirmerLivraison($livraison, auth()->user());
+            $this->livraisonService->confirmerLivraison($livraison, $operateur);
         } catch (\DomainException $exception) {
             return $this->error($exception->getMessage(), 422);
         }
 
         return $this->success(
-            new LivraisonResource($livraison->fresh()->load('client', 'lignes.produit', 'lignes.classement')),
+            new LivraisonResource($livraison->fresh()->load('client', 'lignes.produit', 'lignes.classement', 'facture')),
             'Livraison confirmee. Stocks decrementes.'
+        );
+    }
+
+    public function annuler(Request $request, Livraison $livraison): JsonResponse
+    {
+        $operateur = $request->user();
+
+        if (! $operateur instanceof Utilisateur) {
+            return $this->error('Utilisateur authentifie invalide.', 422);
+        }
+
+        try {
+            $this->livraisonService->annulerLivraison($livraison, $operateur);
+        } catch (\DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        }
+
+        return $this->success(
+            new LivraisonResource($livraison->fresh()->load('client', 'lignes.produit', 'lignes.classement', 'facture')),
+            'Livraison annulee. Stocks recredites.'
         );
     }
 }

@@ -22,7 +22,7 @@ class BonProductionController extends BaseApiController
     {
         $this->authorize('viewAny', BonProduction::class);
 
-        $query = BonProduction::with('location', 'produit', 'createur');
+        $query = BonProduction::with('location', 'produit', 'machine', 'createur');
 
         if ($request->filled('location_id')) {
             $query->where('location_id', $request->location_id);
@@ -58,15 +58,15 @@ class BonProductionController extends BaseApiController
         $this->authorize('create', BonProduction::class);
 
         $bp = BonProduction::create([
-            'numero'             => BonProduction::generateReference('BP'),
+            'numero' => BonProduction::generateReference('BP'),
             ...$request->validated(),
-            'statut'             => StatutProduction::OUVERT->value,
-            'cout_total'         => 0,
-            'created_by'         => auth()->id(),
+            'statut' => StatutProduction::OUVERT->value,
+            'cout_total' => 0,
+            'created_by' => auth()->id(),
         ]);
 
         return $this->created(
-            new BonProductionResource($bp->load('location', 'produit'))
+            new BonProductionResource($bp->load('location', 'produit', 'machine'))
         );
     }
 
@@ -77,9 +77,13 @@ class BonProductionController extends BaseApiController
         $bonsProduction->load(
             'location',
             'produit',
+            'machine',
             'createur',
+            'sessions.machine',
             'sessions.matieres.matiere',
-            'sessions.obtenus.classement.produit',
+            'sessions.obtenus.produit',
+            'sessions.obtenus.classement',
+            'sessions.obtenus.destination',
             'sessions.employes.employe',
             'sessions.evenements'
         );
@@ -96,14 +100,14 @@ class BonProductionController extends BaseApiController
         }
 
         $validated = $request->validate([
-            'machine_production' => ['sometimes', 'string', 'max:100'],
-            'quantite_cible'     => ['sometimes', 'numeric', 'min:0.001'],
+            'machine_id' => ['sometimes', 'exists:machines,id'],
+            'quantite_cible' => ['sometimes', 'numeric', 'min:0.001'],
         ]);
 
         $bonsProduction->update($validated);
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
             'Bon de production mis à jour.'
         );
     }
@@ -124,7 +128,7 @@ class BonProductionController extends BaseApiController
         }
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
             'Bon de production clôturé.'
         );
     }
@@ -140,7 +144,7 @@ class BonProductionController extends BaseApiController
         $bonsProduction->update(['statut' => StatutProduction::ANNULE->value]);
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh(['location', 'produit'])),
+            new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
             'Bon de production annulé.'
         );
     }

@@ -1,5 +1,4 @@
 <?php
-// routes/api.php
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Auth\AuthController;
@@ -23,6 +22,7 @@ use App\Http\Controllers\Api\Achat\DemandeAchatController;
 use App\Http\Controllers\Api\Achat\JournalAchatController;
 use App\Http\Controllers\Api\Production\BonProductionController;
 use App\Http\Controllers\Api\Production\BpSessionController;
+use App\Http\Controllers\Api\Production\MachineController;
 use App\Http\Controllers\Api\Recyclage\BonTransformationController;
 use App\Http\Controllers\Api\Recyclage\BtSessionController;
 use App\Http\Controllers\Api\Logistique\LivraisonController;
@@ -92,8 +92,12 @@ Route::prefix('v1')->group(function () {
         Route::prefix('catalogue')
             ->middleware('role:admin,responsable_prod,operateur_saisie,commercial,responsable_achat')
             ->group(function () {
+                Route::post('produits/import', [ProduitController::class, 'import']);
                 Route::apiResource('categories', CategorieProduitController::class);
+
+                Route::post('matieres-premieres/import', [MatierePremierController::class, 'import']);
                 Route::apiResource('matieres-premieres', MatierePremierController::class);
+
                 Route::apiResource('produits', ProduitController::class);
                 Route::apiResource('produits.classements', ClassementProduitController::class)
                     ->shallow();
@@ -103,6 +107,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('stocks')
             ->middleware('role:admin,responsable_prod,operateur_saisie,commercial,logistique,responsable_achat')
             ->group(function () {
+                Route::post('import', [StockController::class, 'import']);
                 Route::get('/', [StockController::class, 'index']);
                 Route::get('/ruptures', [StockController::class, 'ruptures']);
                 Route::get('/par-location/{id}', [StockController::class, 'parLocation']);
@@ -110,6 +115,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/par-matiere/{id}', [StockController::class, 'parMatiere']);
                 Route::get('mouvements', [MouvementStockController::class, 'index']);
                 Route::get('mouvements/{id}', [MouvementStockController::class, 'show']);
+                Route::get('/alertes', [StockController::class, 'alertes']);
+                Route::post('/ajustements', [StockController::class, 'ajusterInventaire']);
             });
 
         // ── Commercial ────────────────────────────────────
@@ -132,6 +139,7 @@ Route::prefix('v1')->group(function () {
 
                 Route::apiResource('ventes-directes', VenteDirecteController::class);
                 Route::post('ventes-directes/{vente}/valider', [VenteDirecteController::class, 'valider']);
+                Route::post('ventes-directes/{vente}/annuler', [VenteDirecteController::class, 'annuler']);
                 Route::apiResource('ventes-directes.lignes', \App\Http\Controllers\Api\Commercial\LigneVenteDirecteController::class)
                     ->shallow();
             });
@@ -163,6 +171,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('production')
             ->middleware('role:admin,responsable_prod,operateur_saisie')
             ->group(function () {
+                Route::apiResource('machines', MachineController::class);
                 Route::apiResource('bons-production', BonProductionController::class);
                 Route::post('bons-production/{bp}/cloture', [BonProductionController::class, 'cloture']);
                 Route::post('bons-production/{bp}/annuler', [BonProductionController::class, 'annuler']);
@@ -197,6 +206,7 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::apiResource('livraisons', LivraisonController::class);
                 Route::post('livraisons/{livraison}/confirmer', [LivraisonController::class, 'confirmer']);
+                Route::post('livraisons/{livraison}/annuler', [LivraisonController::class, 'annuler']);
                 Route::apiResource('livraisons.lignes', \App\Http\Controllers\Api\Logistique\LigneLivraisonController::class)
                     ->shallow();
 

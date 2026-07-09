@@ -1,5 +1,4 @@
 <?php
-// app/Services/StockService.php
 
 namespace App\Services;
 
@@ -9,33 +8,21 @@ use App\Models\Utilisateur;
 use App\Repositories\Contracts\StockRepositoryInterface;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Service central de gestion des stocks.
- *
- * RÈGLE ABSOLUE :
- * Toute modification de stock passe par ce service.
- * Aucun code ne doit modifier stocks.stock_total directement.
- *
- * LARAVEL 13 / PHP 8.3 :
- * - Constructor property promotion avec readonly
- * - DB::transaction() pour l'atomicité
- */
 class StockService
 {
     public function __construct(
         private readonly StockRepositoryInterface $stockRepository
     ) {}
 
-    // ── Entrée stock ────────────────────────────────────────
     public function entree(
-        int        $locationId,
-        string     $entiteType,
-        int        $entiteId,
-        float      $quantite,
-        string     $referenceType,
-        int        $referenceId,
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $quantite,
+        string $referenceType,
+        int $referenceId,
         Utilisateur $operateur,
-        ?int       $classementId = null
+        ?int $classementId = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
@@ -43,29 +30,36 @@ class StockService
             $operateur, $classementId
         ) {
             $this->stockRepository->incrementer(
-                $locationId, $entiteType, $entiteId,
-                $quantite, $classementId
+                $locationId,
+                $entiteType,
+                $entiteId,
+                $quantite,
+                $classementId
             );
 
             $this->enregistrerMouvement(
-                $locationId, $entiteType, $entiteId,
-                TypeMouvement::ENTREE, $quantite,
-                $referenceType, $referenceId,
-                $operateur, $classementId
+                locationId: $locationId,
+                entiteType: $entiteType,
+                entiteId: $entiteId,
+                type: TypeMouvement::ENTREE,
+                quantite: $quantite,
+                referenceType: $referenceType,
+                referenceId: $referenceId,
+                operateur: $operateur,
+                classementId: $classementId
             );
         });
     }
 
-    // ── Sortie stock ────────────────────────────────────────
     public function sortie(
-        int        $locationId,
-        string     $entiteType,
-        int        $entiteId,
-        float      $quantite,
-        string     $referenceType,
-        int        $referenceId,
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $quantite,
+        string $referenceType,
+        int $referenceId,
         Utilisateur $operateur,
-        ?int       $classementId = null
+        ?int $classementId = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
@@ -73,29 +67,36 @@ class StockService
             $operateur, $classementId
         ) {
             $this->stockRepository->decrementer(
-                $locationId, $entiteType, $entiteId,
-                $quantite, $classementId
+                $locationId,
+                $entiteType,
+                $entiteId,
+                $quantite,
+                $classementId
             );
 
             $this->enregistrerMouvement(
-                $locationId, $entiteType, $entiteId,
-                TypeMouvement::SORTIE, $quantite,
-                $referenceType, $referenceId,
-                $operateur, $classementId
+                locationId: $locationId,
+                entiteType: $entiteType,
+                entiteId: $entiteId,
+                type: TypeMouvement::SORTIE,
+                quantite: $quantite,
+                referenceType: $referenceType,
+                referenceId: $referenceId,
+                operateur: $operateur,
+                classementId: $classementId
             );
         });
     }
 
-    // ── Retour stock ────────────────────────────────────────
     public function retour(
-        int        $locationId,
-        string     $entiteType,
-        int        $entiteId,
-        float      $quantite,
-        string     $referenceType,
-        int        $referenceId,
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $quantite,
+        string $referenceType,
+        int $referenceId,
         Utilisateur $operateur,
-        ?int       $classementId = null
+        ?int $classementId = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
@@ -103,42 +104,115 @@ class StockService
             $operateur, $classementId
         ) {
             $this->stockRepository->incrementer(
-                $locationId, $entiteType, $entiteId,
-                $quantite, $classementId
+                $locationId,
+                $entiteType,
+                $entiteId,
+                $quantite,
+                $classementId
             );
 
             $this->enregistrerMouvement(
-                $locationId, $entiteType, $entiteId,
-                TypeMouvement::RETOUR, $quantite,
-                $referenceType, $referenceId,
-                $operateur, $classementId
+                locationId: $locationId,
+                entiteType: $entiteType,
+                entiteId: $entiteId,
+                type: TypeMouvement::RETOUR,
+                quantite: $quantite,
+                referenceType: $referenceType,
+                referenceId: $referenceId,
+                operateur: $operateur,
+                classementId: $classementId
             );
         });
     }
 
-    // ── Enregistrement mouvement ────────────────────────────
+    public function ajusterInventaire(
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $stockPhysique,
+        string $motif,
+        Utilisateur $operateur,
+        ?int $classementId = null
+    ): MouvementStock {
+        return DB::transaction(function () use (
+            $locationId,
+            $entiteType,
+            $entiteId,
+            $stockPhysique,
+            $motif,
+            $operateur,
+            $classementId
+        ) {
+            $stock = $this->stockRepository->trouverOuCreer(
+                $locationId,
+                $entiteType,
+                $entiteId,
+                $classementId
+            );
+
+            $stockTheorique = (float) $stock->stock_total;
+            $ecart = round($stockPhysique - $stockTheorique, 3);
+
+            if ($ecart == 0.0) {
+                throw new \DomainException('Aucun ecart detecte pour cet inventaire.');
+            }
+
+            $this->stockRepository->ajusterVers(
+                $locationId,
+                $entiteType,
+                $entiteId,
+                $stockPhysique,
+                $classementId
+            );
+
+            return $this->enregistrerMouvement(
+                locationId: $locationId,
+                entiteType: $entiteType,
+                entiteId: $entiteId,
+                type: TypeMouvement::INVENTAIRE,
+                quantite: abs($ecart),
+                referenceType: 'ajustement_inventaire',
+                referenceId: $stock->id,
+                operateur: $operateur,
+                classementId: $classementId,
+                motif: $motif,
+                stockTheorique: $stockTheorique,
+                stockPhysique: $stockPhysique,
+                ecart: $ecart
+            );
+        });
+    }
+
     private function enregistrerMouvement(
-        int         $locationId,
-        string      $entiteType,
-        int         $entiteId,
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
         TypeMouvement $type,
-        float       $quantite,
-        string      $referenceType,
-        int         $referenceId,
-        Utilisateur  $operateur,
-        ?int        $classementId = null
-    ): void {
-        MouvementStock::create([
-            'location_id'    => $locationId,
-            'entite_type'    => $entiteType,
-            'entite_id'      => $entiteId,
-            'classement_id'  => $classementId,
-            'type'           => $type->value,
-            'quantite'       => $quantite,
+        float $quantite,
+        string $referenceType,
+        int $referenceId,
+        Utilisateur $operateur,
+        ?int $classementId = null,
+        ?string $motif = null,
+        ?float $stockTheorique = null,
+        ?float $stockPhysique = null,
+        ?float $ecart = null
+    ): MouvementStock {
+        return MouvementStock::create([
+            'location_id' => $locationId,
+            'entite_type' => $entiteType,
+            'entite_id' => $entiteId,
+            'classement_id' => $classementId,
+            'type' => $type->value,
+            'quantite' => $quantite,
             'reference_type' => $referenceType,
-            'reference_id'   => $referenceId,
+            'reference_id' => $referenceId,
             'utilisateur_id' => $operateur->id,
             'date_mouvement' => now(),
+            'motif' => $motif,
+            'stock_theorique' => $stockTheorique,
+            'stock_physique' => $stockPhysique,
+            'ecart' => $ecart,
         ]);
     }
 }

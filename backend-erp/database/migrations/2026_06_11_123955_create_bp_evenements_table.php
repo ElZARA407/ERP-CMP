@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('bp_session_id')
                   ->constrained('bp_sessions')
                   ->cascadeOnDelete();
-            $table->enum('type_evenement', ['production', 'pause', 'panne', 'autre']);
+            $table->enum('type_evenement', ['debut', 'fin', 'panne', 'autre']);
             $table->time('heure_debut');
             $table->time('heure_fin')->nullable();
             $table->text('description')->nullable();

@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Api\Commercial;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\VenteDirecteResource;
-use App\Models\LigneVenteDirecte;
+use App\Models\Utilisateur;
 use App\Models\VenteDirecte;
+use App\Services\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class VenteDirecteController extends BaseApiController
 {
+    public function __construct(
+        private readonly StockService $stockService
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = VenteDirecte::with('client', 'location', 'createur');
@@ -72,8 +77,7 @@ class VenteDirecteController extends BaseApiController
             ]);
 
             foreach ($lignes as $ligne) {
-                LigneVenteDirecte::create([
-                    'vente_directe_id' => $vente->id,
+                $vente->lignes()->create([
                     'produit_id' => $ligne['produit_id'],
                     'classement_id' => $ligne['classement_id'],
                     'quantite' => $ligne['quantite'],
@@ -90,7 +94,14 @@ class VenteDirecteController extends BaseApiController
 
     public function show(VenteDirecte $venteDirecte): JsonResponse
     {
-        $venteDirecte->load('client', 'location', 'lignes.produit', 'lignes.classement', 'createur');
+        $venteDirecte->load(
+            'client',
+            'location',
+            'lignes.produit',
+            'lignes.classement',
+            'createur',
+            'livraisons'
+        );
 
         return $this->success(new VenteDirecteResource($venteDirecte));
     }
@@ -104,7 +115,9 @@ class VenteDirecteController extends BaseApiController
         $venteDirecte->update($request->only(['date', 'location_id']));
 
         return $this->success(
-            new VenteDirecteResource($venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement')),
+            new VenteDirecteResource(
+                $venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement', 'createur', 'livraisons')
+            ),
             'Vente directe mise a jour.'
         );
     }
@@ -120,21 +133,105 @@ class VenteDirecteController extends BaseApiController
         return $this->success(null, 'Vente directe supprimee.');
     }
 
-    public function valider(VenteDirecte $venteDirecte): JsonResponse
+    public function valider(Request $request, VenteDirecte $venteDirecte): JsonResponse
     {
         if ($venteDirecte->statut !== 'brouillon') {
             return $this->error('Cette vente est deja validee.', 422);
         }
 
-        if ($venteDirecte->lignes()->count() === 0) {
-            return $this->error('Impossible de valider une vente sans lignes.', 422);
+        $operateur = $request->user();
+
+        if (! $operateur instanceof Utilisateur) {
+            return $this->error('Utilisateur authentifie invalide.', 422);
         }
 
-        $venteDirecte->update(['statut' => 'validee']);
+        DB::transaction(function () use ($venteDirecte, $operateur) {
+            $venteDirecte->loadMissing('lignes.produit', 'lignes.classement');
+
+            if ($venteDirecte->lignes->isEmpty()) {
+                throw new \DomainException('Impossible de valider une vente sans lignes.');
+            }
+
+            foreach ($venteDirecte->lignes as $ligne) {
+                if (! $ligne->produit_id) {
+                    throw new \DomainException('Produit manquant sur une ligne de vente.');
+                }
+
+                $this->stockService->sortie(
+                    locationId: $venteDirecte->location_id,
+                    entiteType: 'produit',
+                    entiteId: (int) $ligne->produit_id,
+                    quantite: (float) $ligne->quantite,
+                    referenceType: 'vente_directe',
+                    referenceId: $venteDirecte->id,
+                    operateur: $operateur,
+                    classementId: $ligne->classement_id
+                );
+            }
+
+            $venteDirecte->update([
+                'statut' => 'validee',
+            ]);
+        });
 
         return $this->success(
-            new VenteDirecteResource($venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement')),
-            'Vente directe validee.'
+            new VenteDirecteResource(
+                $venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement', 'createur', 'livraisons')
+            ),
+            'Vente directe validee. Stocks decrementes.'
+        );
+    }
+
+    public function annuler(Request $request, VenteDirecte $venteDirecte): JsonResponse
+    {
+        if ($venteDirecte->statut !== 'validee') {
+            return $this->error('Seule une vente validee peut etre annulee.', 422);
+        }
+
+        if ($venteDirecte->livraisons()->exists()) {
+            return $this->error('Cette vente ne peut pas etre annulee car un BL est deja rattache.', 422);
+        }
+
+        $operateur = $request->user();
+
+        if (! $operateur instanceof Utilisateur) {
+            return $this->error('Utilisateur authentifie invalide.', 422);
+        }
+
+        DB::transaction(function () use ($venteDirecte, $operateur) {
+            $venteDirecte->loadMissing('lignes.produit', 'lignes.classement');
+
+            if ($venteDirecte->lignes->isEmpty()) {
+                throw new \DomainException('Impossible d annuler une vente sans lignes.');
+            }
+
+            foreach ($venteDirecte->lignes as $ligne) {
+                if (! $ligne->produit_id) {
+                    throw new \DomainException('Produit manquant sur une ligne de vente.');
+                }
+
+                $this->stockService->retour(
+                    locationId: $venteDirecte->location_id,
+                    entiteType: 'produit',
+                    entiteId: (int) $ligne->produit_id,
+                    quantite: (float) $ligne->quantite,
+                    referenceType: 'vente_directe_annulee',
+                    referenceId: $venteDirecte->id,
+                    operateur: $operateur,
+                    classementId: $ligne->classement_id
+                );
+            }
+
+            $venteDirecte->update([
+                'statut' => 'annulee',
+            ]);
+        });
+
+        return $this->success(
+            new VenteDirecteResource(
+                $venteDirecte->fresh('client', 'location', 'lignes.produit', 'lignes.classement', 'createur', 'livraisons')
+            ),
+            'Vente directe annulee. Stocks recredites.'
         );
     }
 }

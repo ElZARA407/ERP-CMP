@@ -1,41 +1,52 @@
 <?php
-// app/Repositories/StockRepository.php
 
 namespace App\Repositories;
 
 use App\Models\Stock;
 use App\Repositories\Contracts\StockRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 
 class StockRepository implements StockRepositoryInterface
 {
     public function trouverOuCreer(
-        int     $locationId,
-        string  $entiteType,
-        int     $entiteId,
-        ?int    $classementId = null
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        ?int $classementId = null,
+        float $quantite = 0
     ): Stock {
+        if($classementId === null) {
+            return Stock::firstOrCreate(
+                [
+                    'entite_type' => $entiteType,
+                    'entite_id' => $entiteId,
+                ],
+                ['stock_total' => 0]
+            );
+        }
         return Stock::firstOrCreate(
             [
-                'location_id'  => $locationId,
-                'entite_type'  => $entiteType,
-                'entite_id'    => $entiteId,
-                'classement_id'=> $classementId,
+                'entite_type' => $entiteType,
+                'entite_id' => $entiteId,
+                'classement_id' => $classementId,
             ],
-            ['stock_total' => 0]
+            ['stock_total' => $quantite]
         );
     }
 
     public function incrementer(
-        int     $locationId,
-        string  $entiteType,
-        int     $entiteId,
-        float   $quantite,
-        ?int    $classementId = null
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $quantite,
+        ?int $classementId = null
     ): Stock {
         $stock = $this->trouverOuCreer(
-            $locationId, $entiteType, $entiteId, $classementId
+            $locationId,
+            $entiteType,
+            $entiteId,
+            $classementId,
+            $quantite
         );
 
         $stock->increment('stock_total', $quantite);
@@ -44,20 +55,23 @@ class StockRepository implements StockRepositoryInterface
     }
 
     public function decrementer(
-        int     $locationId,
-        string  $entiteType,
-        int     $entiteId,
-        float   $quantite,
-        ?int    $classementId = null
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $quantite,
+        ?int $classementId = null
     ): Stock {
         $stock = $this->trouverOuCreer(
-            $locationId, $entiteType, $entiteId, $classementId
+            $locationId,
+            $entiteType,
+            $entiteId,
+            $classementId,
+            $quantite
         );
 
         if ($stock->stock_total < $quantite) {
             throw new \DomainException(
-                "Stock insuffisant. Disponible : {$stock->stock_total}, "
-                . "demandé : {$quantite}"
+                "Stock insuffisant. Disponible : {$stock->stock_total}, demande : {$quantite}"
             );
         }
 
@@ -66,22 +80,43 @@ class StockRepository implements StockRepositoryInterface
         return $stock->fresh();
     }
 
+    public function ajusterVers(
+        int $locationId,
+        string $entiteType,
+        int $entiteId,
+        float $stockPhysique,
+        ?int $classementId = null
+    ): Stock {
+        $stock = $this->trouverOuCreer(
+            $locationId,
+            $entiteType,
+            $entiteId,
+            $classementId
+        );
+
+        $stock->update([
+            'stock_total' => $stockPhysique,
+        ]);
+
+        return $stock->fresh();
+    }
+
     public function stockParLocation(int $locationId): Collection
     {
         return Stock::with(['classement.produit', 'location'])
-                    ->where('location_id', $locationId)
-                    ->where('stock_total', '>', 0)
-                    ->get();
+            ->where('location_id', $locationId)
+            ->where('stock_total', '>', 0)
+            ->get();
     }
 
     public function stockParEntite(
         string $entiteType,
-        int    $entiteId
+        int $entiteId
     ): Collection {
         return Stock::where('entite_type', $entiteType)
-                    ->where('entite_id', $entiteId)
-                    ->with('location')
-                    ->get();
+            ->where('entite_id', $entiteId)
+            ->with('location')
+            ->get();
     }
 
     public function enRupture(): Collection

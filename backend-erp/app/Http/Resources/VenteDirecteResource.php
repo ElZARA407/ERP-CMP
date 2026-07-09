@@ -52,6 +52,19 @@ class VenteDirecteResource extends JsonResource
                 ])
             ),
 
+            'livraisons' => $this->whenLoaded('livraisons', fn () =>
+                $this->livraisons->map(fn ($livraison) => [
+                    'id' => $livraison->id,
+                    'numero' => $livraison->numero,
+                    'source_type' => $livraison->source_type,
+                    'source_id' => $livraison->source_id,
+                    'date_livraison' => $livraison->date_livraison?->toDateString(),
+                    'statut' => $livraison->statut,
+                    'est_facturee' => $livraison->estFacturee(),
+                    'created_at' => $livraison->created_at?->toDateTimeString(),
+                ])
+            ),
+
             'created_at' => $this->created_at?->toDateTimeString(),
         ];
     }

@@ -21,7 +21,7 @@ class CategorieProduitController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'nom' => ['required', 'in:INJ,HDPE,PET,MCH', 'unique:categories_produits,nom'],
+            'nom' => ['required', 'in:INJ,HDPE,PET,MCH', 'unique:categorie_produits,nom'],
         ]);
 
         $categorie = CategorieProduit::create($validated);

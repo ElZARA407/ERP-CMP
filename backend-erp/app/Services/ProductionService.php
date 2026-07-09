@@ -31,8 +31,8 @@ class ProductionService
             );
 
             foreach ($session->matieres as $bpMp) {
-                $quantiteNette = (float) $bpMp->quantite_utilisee - (float) $bpMp->quantite_restituee;
-
+                $quantiteNette = (float) $bpMp->quantite_utilisee;
+                // $quantiteNette = (float) $bpMp->quantite_utilisee - (float) $bpMp->quantite_restituee;
                 if ($quantiteNette > 0) {
                     $this->stockService->sortie(
                         locationId: $session->bonProduction->location_id,
@@ -81,10 +81,8 @@ class ProductionService
                 );
             }
 
-            $dureesPauses = $this->calculerDureePauses($session);
-
             foreach ($session->employes as $bpEmploye) {
-                $heuresEffectives = max(0, (float) $bpEmploye->heures_brutes - $dureesPauses);
+                $heuresEffectives = (float) $bpEmploye->heures_brutes;
                 $cout = round($heuresEffectives * (float) $bpEmploye->taux_horaire, 2);
 
                 $bpEmploye->update([
@@ -93,21 +91,14 @@ class ProductionService
                 ]);
             }
 
-            $coutTotal = $session->coutTotal();
-
             $session->update([
                 'statut' => 'validee',
-                'cout_total' => $coutTotal,
+                'cout_total' => $session->coutTotal(),
                 'valide_by' => $valideur->id,
             ]);
 
             $this->recalculerCoutBP($session->bonProduction);
-
-            $bp = $session->bonProduction;
-
-            if ($bp->statut === StatutProduction::OUVERT) {
-                $bp->update(['statut' => StatutProduction::EN_COURS->value]);
-            }
+            $this->recalculerStatutBP($session->bonProduction);
         });
     }
 
@@ -117,16 +108,28 @@ class ProductionService
             throw new \DomainException("Le bon de production {$bp->numero} ne peut pas etre cloture.");
         }
 
+        if ($bp->quantiteTotaleProduite() < (float) $bp->quantite_cible) {
+            throw new \DomainException("La quantite cible du bon de production {$bp->numero} n'est pas encore atteinte.");
+        }
+
         $bp->update(['statut' => StatutProduction::CLOTURE->value]);
     }
 
-    private function calculerDureePauses(BpSession $session): float
+    private function recalculerStatutBP(BonProduction $bp): void
     {
-        return (float) $session->evenements()
-            ->where('type_evenement', 'pause')
-            ->whereNotNull('heure_fin')
-            ->selectRaw('SUM(TIME_TO_SEC(TIMEDIFF(heure_fin, heure_debut)) / 3600) as total')
-            ->value('total');
+        $quantiteProduite = $bp->quantiteTotaleProduite();
+
+        if ($quantiteProduite >= (float) $bp->quantite_cible && (float) $bp->quantite_cible > 0) {
+            $bp->update(['statut' => StatutProduction::CLOTURE->value]);
+            return;
+        }
+
+        if ($bp->sessions()->where('statut', 'validee')->exists()) {
+            $bp->update(['statut' => StatutProduction::EN_COURS->value]);
+            return;
+        }
+
+        $bp->update(['statut' => StatutProduction::OUVERT->value]);
     }
 
     private function recalculerCoutBP(BonProduction $bp): void

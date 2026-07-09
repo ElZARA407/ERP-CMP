@@ -6,8 +6,8 @@ namespace App\Models;
 use App\Enums\StatutProduction;
 use App\Traits\HasReference;
 use App\Traits\HasAuditFields;
-use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,14 +16,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Table('bon_productions')]
 #[Fillable(
     'numero', 'date', 'location_id', 'produit_id',
-    'machine_production', 'quantite_cible',
+    'machine_id', 'quantite_cible',
     'statut', 'cout_total', 'created_by'
 )]
 class BonProduction extends Model
 {
     use HasFactory, HasReference, HasAuditFields;
 
-    // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
@@ -34,7 +33,6 @@ class BonProduction extends Model
         ];
     }
 
-    // ── Scopes ─────────────────────────────────────────────
     public function scopeActifs($query)
     {
         return $query->whereIn('statut', [
@@ -48,7 +46,6 @@ class BonProduction extends Model
         return $query->where('location_id', $locationId);
     }
 
-    // ── Relations ──────────────────────────────────────────
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
@@ -57,6 +54,11 @@ class BonProduction extends Model
     public function produit(): BelongsTo
     {
         return $this->belongsTo(Produit::class);
+    }
+
+    public function machine(): BelongsTo
+    {
+        return $this->belongsTo(Machine::class);
     }
 
     public function sessions(): HasMany
@@ -70,7 +72,6 @@ class BonProduction extends Model
                     ->where('statut', 'validee');
     }
 
-    // ── Méthodes métier ────────────────────────────────────
     public function quantiteTotaleProduite(): float
     {
         return (float) BpObtenue::whereHas('session', function ($q) {

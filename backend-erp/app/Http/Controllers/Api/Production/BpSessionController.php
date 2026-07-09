@@ -1,4 +1,5 @@
 <?php
+// app/Http/Controllers/Api/Production/BpSessionController.php
 
 namespace App\Http\Controllers\Api\Production;
 
@@ -11,9 +12,11 @@ use App\Models\BpEvenement;
 use App\Models\BpMp;
 use App\Models\BpObtenue;
 use App\Models\BpSession;
+use App\Models\Employe;
 use App\Services\ProductionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BpSessionController extends BaseApiController
 {
@@ -26,7 +29,15 @@ class BpSessionController extends BaseApiController
         $this->authorize('viewAny', BonProduction::class);
 
         $sessions = $bonsProduction->sessions()
-            ->with('matieres.matiere', 'obtenus.produit', 'obtenus.classement', 'employes.employe')
+            ->with(
+                'machine',
+                'matieres.matiere',
+                'obtenus.produit',
+                'obtenus.classement',
+                'obtenus.destination',
+                'employes.employe',
+                'evenements.operateur'
+            )
             ->orderBy('session_numero')
             ->get();
 
@@ -41,16 +52,80 @@ class BpSessionController extends BaseApiController
             return $this->error('Ce BP ne peut plus recevoir de sessions.', 422);
         }
 
-        $session = BpSession::create([
-            'bon_production_id' => $bonsProduction->id,
-            'session_numero' => $bonsProduction->prochainNumeroSession(),
-            ...$request->validated(),
-            'statut' => 'ouverte',
-            'cout_electricite' => $request->cout_electricite ?? 0,
-            'saisi_by' => auth()->id(),
-        ]);
+        $validated = $request->validated();
 
-        return $this->created(new BpSessionResource($session));
+        $session = DB::transaction(function () use ($bonsProduction, $validated) {
+            $session = BpSession::create([
+                'bon_production_id' => $bonsProduction->id,
+                'session_numero' => $bonsProduction->prochainNumeroSession(),
+                'date_session' => $validated['date_session'],
+                'machine_id' => $validated['machine_id'],
+                'cout_electricite' => $validated['cout_electricite'] ?? 0,
+                'cout_total' => 0,
+                'statut' => 'ouverte',
+                'saisi_by' => auth()->id(),
+            ]);
+
+            foreach ($validated['matieres'] ?? [] as $row) {
+                BpMp::create([
+                    'bp_session_id' => $session->id,
+                    'matiere_id' => $row['matiere_id'],
+                    'quantite_utilisee' => $row['quantite_utilisee'],
+                    'quantite_restituee' => $row['quantite_restituee'] ?? 0,
+                    'cout_matiere' => 0,
+                ]);
+            }
+
+            foreach ($validated['obtenus'] ?? [] as $row) {
+                BpObtenue::create([
+                    'bp_session_id' => $session->id,
+                    'produit_id' => $row['produit_id'],
+                    'classement_id' => $row['classement_id'],
+                    'quantite_produite' => $row['quantite_produite'],
+                    'destination_location_id' => $row['destination_location_id'],
+                ]);
+            }
+
+            foreach ($validated['employes'] ?? [] as $row) {
+                $tauxHoraire = Employe::find($row['employe_id'])?->tauxHoraireActuel() ?? 0;
+
+                BpEmploye::create([
+                    'bp_session_id' => $session->id,
+                    'employe_id' => $row['employe_id'],
+                    'heures_brutes' => $row['heures_brutes'],
+                    'heures_effectives' => $row['heures_brutes'],
+                    'taux_horaire' => $tauxHoraire,
+                    'cout' => round($row['heures_brutes'] * (float) $tauxHoraire, 2),
+                ]);
+            }
+
+            foreach ($validated['evenements'] ?? [] as $row) {
+                BpEvenement::create([
+                    'bp_session_id' => $session->id,
+                    'type_evenement' => $row['type_evenement'],
+                    'heure_debut' => $row['heure_debut'],
+                    'heure_fin' => $row['heure_fin'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'operateur_id' => auth()->id(),
+                ]);
+            }
+
+            return $session;
+        });
+
+        $session->load(
+            'machine',
+            'matieres.matiere',
+            'obtenus.produit',
+            'obtenus.classement',
+            'obtenus.destination',
+            'employes.employe.poste',
+            'evenements.operateur'
+        );
+
+        return $this->created(
+            new BpSessionResource($session)
+        );
     }
 
     public function show(BpSession $session): JsonResponse
@@ -59,12 +134,14 @@ class BpSessionController extends BaseApiController
         $this->authorize('view', $session->bonProduction);
 
         $session->load(
+            'machine',
             'matieres.matiere',
             'obtenus.produit',
             'obtenus.classement',
+            'obtenus.destination',
             'employes.employe.poste',
             'evenements.operateur',
-            'bonProduction'
+            'bonProduction.machine'
         );
 
         return $this->success(new BpSessionResource($session));
@@ -76,17 +153,20 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Une session validee ne peut pas etre modifiee.', 422);
+            return $this->error('Une session validée ne peut pas être modifiée.', 422);
         }
 
         $validated = $request->validate([
-            'machine_production' => ['sometimes', 'string', 'max:100'],
+            'machine_id' => ['sometimes', 'exists:machines,id'],
             'cout_electricite' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
 
         $session->update($validated);
 
-        return $this->success(new BpSessionResource($session->fresh()), 'Session mise a jour.');
+        return $this->success(
+            new BpSessionResource($session->fresh()->load('machine')),
+            'Session mise à jour.'
+        );
     }
 
     public function destroy(BpSession $session): JsonResponse
@@ -95,12 +175,12 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Une session validee ne peut pas etre supprimee.', 422);
+            return $this->error('Une session validée ne peut pas être supprimée.', 422);
         }
 
         $session->delete();
 
-        return $this->success(null, 'Session supprimee.');
+        return $this->success(null, 'Session supprimée.');
     }
 
     public function valider(BpSession $session): JsonResponse
@@ -115,8 +195,17 @@ class BpSessionController extends BaseApiController
         }
 
         return $this->success(
-            new BpSessionResource($session->fresh()->load('matieres', 'obtenus.produit', 'obtenus.classement', 'employes')),
-            'Session validee. Stocks mis a jour.'
+            new BpSessionResource(
+                $session->fresh()->load(
+                    'machine',
+                    'matieres.matiere',
+                    'obtenus.produit',
+                    'obtenus.classement',
+                    'obtenus.destination',
+                    'employes.employe'
+                )
+            ),
+            'Session validée. Stocks mis à jour.'
         );
     }
 
@@ -126,13 +215,13 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Session deja validee.', 422);
+            return $this->error('Session déjà validée.', 422);
         }
 
         $validated = $request->validate([
             'matiere_id' => ['required', 'exists:matieres_premieres,id'],
             'quantite_utilisee' => ['required', 'numeric', 'min:0.001'],
-            'quantite_restituee' => ['nullable', 'numeric', 'min:0'],
+            'quantite_restituee' => ['nullable', 'numeric', 'min:0', 'lte:quantite_utilisee'],
         ]);
 
         $mp = BpMp::create([
@@ -151,7 +240,7 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Session deja validee.', 422);
+            return $this->error('Session déjà validée.', 422);
         }
 
         $validated = $request->validate([
@@ -175,7 +264,7 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Session deja validee.', 422);
+            return $this->error('Session déjà validée.', 422);
         }
 
         $validated = $request->validate([
@@ -183,13 +272,15 @@ class BpSessionController extends BaseApiController
             'heures_brutes' => ['required', 'numeric', 'min:0.1'],
         ]);
 
-        $tauxHoraire = \App\Models\Employe::find($validated['employe_id'])?->tauxHoraireActuel() ?? 0;
+        $tauxHoraire = Employe::find($validated['employe_id'])?->tauxHoraireActuel() ?? 0;
 
         $bpEmploye = BpEmploye::create([
             'bp_session_id' => $session->id,
             'employe_id' => $validated['employe_id'],
             'heures_brutes' => $validated['heures_brutes'],
+            'heures_effectives' => $validated['heures_brutes'],
             'taux_horaire' => $tauxHoraire,
+            'cout' => round($validated['heures_brutes'] * (float) $tauxHoraire, 2),
         ]);
 
         return $this->created($bpEmploye->load('employe.poste'));
@@ -201,13 +292,13 @@ class BpSessionController extends BaseApiController
         $this->authorize('saisirSession', $session->bonProduction);
 
         if ($session->statut === 'validee') {
-            return $this->error('Session deja validee.', 422);
+            return $this->error('Session déjà validée.', 422);
         }
 
         $validated = $request->validate([
-            'type_evenement' => ['required', 'in:production,pause,panne,autre'],
+            'type_evenement' => ['required', 'in:debut,fin,panne,autre'],
             'heure_debut' => ['required', 'date_format:H:i'],
-            'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
+            'heure_fin' => ['nullable', 'date_format:H:i'],
             'description' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -217,6 +308,6 @@ class BpSessionController extends BaseApiController
             'operateur_id' => auth()->id(),
         ]);
 
-        return $this->created($evenement);
+        return $this->created($evenement->load('operateur'));
     }
 }
