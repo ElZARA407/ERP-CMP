@@ -9,6 +9,7 @@ use App\Models\Commande;
 use App\Models\LigneCommande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class CommandeController extends BaseApiController
@@ -70,11 +71,11 @@ class CommandeController extends BaseApiController
             foreach ($data['lignes'] as $ligne) {
                 LigneCommande::create([
                     'commande_id' => $commande->id,
-                    'produit_id' => $ligne['produit_id'],
-                    'classement_id' => $ligne['classement_id'],
-                    'quantite' => $ligne['quantite'],
-                    'quantite_restante' => $ligne['quantite'],
-                    'prix_unitaire' => $ligne['prix_unitaire'],
+                    'produit_id' => Arr::get($ligne, 'produit_id'),
+                    'classement_id' => Arr::get($ligne, 'classement_id'),
+                    'quantite' => Arr::get($ligne, 'quantite'),
+                    'quantite_restante' => Arr::get($ligne, 'quantite'),
+                    'prix_unitaire' => Arr::get($ligne, 'prix_unitaire'),
                     'etat' => 'disponible',
                 ]);
             }

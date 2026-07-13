@@ -173,9 +173,8 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::apiResource('machines', MachineController::class);
                 Route::apiResource('bons-production', BonProductionController::class);
-                Route::post('bons-production/{bp}/cloture', [BonProductionController::class, 'cloture']);
-                Route::post('bons-production/{bp}/annuler', [BonProductionController::class, 'annuler']);
-
+                Route::post('bons-production/{bonsProduction}/cloture', [BonProductionController::class, 'cloture']);
+                Route::post('bons-production/{bonsProduction}/annuler', [BonProductionController::class, 'annuler']);
                 Route::apiResource('bons-production.sessions', BpSessionController::class)
                     ->shallow();
                 Route::post('sessions/{session}/valider', [BpSessionController::class, 'valider']);

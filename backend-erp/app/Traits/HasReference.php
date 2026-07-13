@@ -20,14 +20,15 @@ trait HasReference
 {
     public static function generateReference(
         string $prefix,
-        int    $padding = 3
+        int $padding = 3,
+        string $yearFormat = 'Y'
     ): string {
-        $year       = date('Y');
+        $year = date($yearFormat);
         $fullPrefix = "{$prefix}-{$year}-";
 
         $last = static::where('numero', 'like', $fullPrefix . '%')
-                      ->orderByDesc('id')
-                      ->value('numero');
+            ->orderByDesc('id')
+            ->value('numero');
 
         $next = $last
             ? (int) substr($last, strlen($fullPrefix)) + 1

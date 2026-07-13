@@ -57,7 +57,7 @@ class BpSessionController extends BaseApiController
         $session = DB::transaction(function () use ($bonsProduction, $validated) {
             $session = BpSession::create([
                 'bon_production_id' => $bonsProduction->id,
-                'session_numero' => $bonsProduction->prochainNumeroSession(),
+                'session_numero' => BpSession::generateReference('BP'),
                 'date_session' => $validated['date_session'],
                 'machine_id' => $validated['machine_id'],
                 'cout_electricite' => $validated['cout_electricite'] ?? 0,

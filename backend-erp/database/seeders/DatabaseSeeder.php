@@ -18,7 +18,12 @@ class DatabaseSeeder extends Seeder
             CategoriesProduitSeeder::class,
 
             // Vague 1 — Dépend de Vague 0
-            AdminSeeder::class,
+            // AdminSeeder::class,
+            ClientSeeder::class,
+            FournisseurSeeder::class,
+            EmployeSeeder::class,
+            MachinesSeeder::class,
+            UtilisateurSeeder::class,
             // ProduitSeeder::class,
             // MatierePremiereSeeder::class,
             ClassementProduitSeeder::class,

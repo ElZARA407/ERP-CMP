@@ -35,7 +35,7 @@ class StoreBpSessionRequest extends FormRequest
             'employes.*.heures_brutes' => ['required', 'numeric', 'min:0.1'],
 
             'evenements' => ['sometimes', 'array'],
-            'evenements.*.type_evenement' => ['required', 'in:debut,fin,panne,autre'],
+            'evenements.*.type_evenement' => ['required', 'in:production,panne,autre'],
             'evenements.*.heure_debut' => ['required', 'date_format:H:i'],
             'evenements.*.heure_fin' => ['nullable', 'date_format:H:i'],
             'evenements.*.description' => ['nullable', 'string', 'max:500'],

@@ -1,5 +1,4 @@
 <?php
-// app/Http/Requests/Commercial/StoreCommandeRequest.php
 
 namespace App\Http\Requests\Commercial;
 
@@ -21,6 +20,7 @@ class StoreCommandeRequest extends FormRequest
             'location_id'            => ['required', 'exists:locations,id'],
             'echeance'               => ['required', 'integer', 'in:15,30,60'],
             'lignes'                 => ['required', 'array', 'min:1'],
+            'lignes.*.produit_id'    => ['required', 'exists:produits,id'],
             'lignes.*.classement_id' => ['required', 'exists:classement_produits,id'],
             'lignes.*.quantite'      => ['required', 'numeric', 'min:0.001'],
             'lignes.*.prix_unitaire' => ['required', 'numeric', 'min:0'],

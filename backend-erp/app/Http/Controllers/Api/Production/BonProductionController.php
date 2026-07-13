@@ -58,7 +58,7 @@ class BonProductionController extends BaseApiController
         $this->authorize('create', BonProduction::class);
 
         $bp = BonProduction::create([
-            'numero' => BonProduction::generateReference('BP'),
+            'numero' => BonProduction::generateReference('OF',3,'y'),
             ...$request->validated(),
             'statut' => StatutProduction::OUVERT->value,
             'cout_total' => 0,
@@ -117,18 +117,44 @@ class BonProductionController extends BaseApiController
         return $this->forbidden('Les bons de production ne peuvent pas être supprimés.');
     }
 
+    // public function cloture(BonProduction $bonsProduction): JsonResponse
+    // {
+    //     $this->authorize('cloture', $bonsProduction);
+
+    //     try {
+    //         $this->productionService->cloturerBP($bonsProduction, auth()->user());
+    //     } catch (\DomainException $e) {
+    //         return $this->error($e->getMessage(), 422);
+    //     }
+
+    //     return $this->success(
+    //         new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
+    //         'Bon de production clôturé.'
+    //     );
+    // }
     public function cloture(BonProduction $bonsProduction): JsonResponse
     {
         $this->authorize('cloture', $bonsProduction);
 
-        try {
-            $this->productionService->cloturerBP($bonsProduction, auth()->user());
-        } catch (\DomainException $e) {
-            return $this->error($e->getMessage(), 422);
+        $bp = BonProduction::query()
+            ->withCount('sessions')
+            ->whereKey($bonsProduction->id)
+            ->firstOrFail();
+
+        $statut = (string) $bp->getRawOriginal('statut');
+
+        if ($statut !== StatutProduction::EN_COURS->value) {
+            return $this->error('Seul un BP en cours peut être clôturé.', 422);
         }
 
+        if ($bp->quantiteTotaleProduite() < (float) $bp->quantite_cible) {
+            return $this->error('La quantité cible du BP n’est pas encore atteinte.', 422);
+        }
+
+        $this->productionService->cloturerBP($bp, auth()->user());
+
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
+            new BonProductionResource($bp->fresh(['location', 'produit', 'machine'])),
             'Bon de production clôturé.'
         );
     }
@@ -137,14 +163,25 @@ class BonProductionController extends BaseApiController
     {
         $this->authorize('annuler', $bonsProduction);
 
-        if ($bonsProduction->statut !== StatutProduction::OUVERT) {
+        $bp = BonProduction::query()
+            ->withCount('sessions')
+            ->whereKey($bonsProduction->id)
+            ->firstOrFail();
+
+        $statut = (string) $bp->getRawOriginal('statut');
+
+        if ($statut !== StatutProduction::OUVERT->value) {
             return $this->error('Seul un BP ouvert peut être annulé.', 422);
         }
 
-        $bonsProduction->update(['statut' => StatutProduction::ANNULE->value]);
+        if ((int) $bp->sessions_count > 0) {
+            return $this->error('Ce BP contient déjà des sessions et ne peut plus être annulé.', 422);
+        }
+
+        $bp->update(['statut' => StatutProduction::ANNULE->value]); 
 
         return $this->success(
-            new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
+            new BonProductionResource($bp->fresh(['location', 'produit', 'machine'])),
             'Bon de production annulé.'
         );
     }
