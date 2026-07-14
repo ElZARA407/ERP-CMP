@@ -84,8 +84,9 @@ class BonProductionController extends BaseApiController
             'sessions.obtenus.produit',
             'sessions.obtenus.classement',
             'sessions.obtenus.destination',
-            'sessions.employes.employe',
-            'sessions.evenements'
+            'sessions.employes.employe.poste',
+            'sessions.evenements',
+            'sessions.calcul'
         );
 
         return $this->success(new BonProductionResource($bonsProduction));

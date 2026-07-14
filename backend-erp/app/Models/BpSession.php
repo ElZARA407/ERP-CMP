@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Table('bp_sessions')]
@@ -68,6 +69,11 @@ class BpSession extends Model
     public function evenements(): HasMany
     {
         return $this->hasMany(BpEvenement::class);
+    }
+
+    public function calcul(): HasOne
+    {
+        return $this->hasOne(BpSessionCalcul::class, 'bp_session_id');
     }
 
     public function coutMatieresTotal(): float

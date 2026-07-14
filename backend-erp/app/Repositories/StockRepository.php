@@ -15,22 +15,25 @@ class StockRepository implements StockRepositoryInterface
         ?int $classementId = null,
         float $quantite = 0
     ): Stock {
-        if($classementId === null) {
-            return Stock::firstOrCreate(
-                [
-                    'entite_type' => $entiteType,
-                    'entite_id' => $entiteId,
-                ],
-                ['stock_total' => 0]
-            );
+        $attributes = [
+            'location_id' => $locationId,
+            'entite_type' => $entiteType,
+            'entite_id' => $entiteId,
+        ];
+
+        if ($classementId !== null) {
+            $attributes['classement_id'] = $classementId;
         }
+
         return Stock::firstOrCreate(
+            $attributes,
             [
+                'location_id' => $locationId,
                 'entite_type' => $entiteType,
                 'entite_id' => $entiteId,
                 'classement_id' => $classementId,
-            ],
-            ['stock_total' => $quantite]
+                'stock_total' => $quantite,
+            ]
         );
     }
 

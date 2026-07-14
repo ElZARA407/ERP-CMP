@@ -36,7 +36,8 @@ class BpSessionController extends BaseApiController
                 'obtenus.classement',
                 'obtenus.destination',
                 'employes.employe',
-                'evenements.operateur'
+                'evenements.operateur',
+                'calcul'
             )
             ->orderBy('session_numero')
             ->get();
@@ -57,7 +58,7 @@ class BpSessionController extends BaseApiController
         $session = DB::transaction(function () use ($bonsProduction, $validated) {
             $session = BpSession::create([
                 'bon_production_id' => $bonsProduction->id,
-                'session_numero' => BpSession::generateReference('BP'),
+                'session_numero' => $bonsProduction->prochainNumeroSession(),
                 'date_session' => $validated['date_session'],
                 'machine_id' => $validated['machine_id'],
                 'cout_electricite' => $validated['cout_electricite'] ?? 0,
@@ -87,15 +88,16 @@ class BpSessionController extends BaseApiController
             }
 
             foreach ($validated['employes'] ?? [] as $row) {
-                $tauxHoraire = Employe::find($row['employe_id'])?->tauxHoraireActuel() ?? 0;
+                $tauxHoraire = Employe::with('poste')->find($row['employe_id'])?->tauxHoraireActuel() ?? 0;
+                $heuresBrutes = (float) ($row['heures_brutes'] ?? 0);
 
                 BpEmploye::create([
                     'bp_session_id' => $session->id,
                     'employe_id' => $row['employe_id'],
-                    'heures_brutes' => $row['heures_brutes'],
-                    'heures_effectives' => $row['heures_brutes'],
+                    'heures_brutes' => $heuresBrutes,
+                    'heures_effectives' => $heuresBrutes,
                     'taux_horaire' => $tauxHoraire,
-                    'cout' => round($row['heures_brutes'] * (float) $tauxHoraire, 2),
+                    'cout' => round($heuresBrutes * (float) $tauxHoraire, 2),
                 ]);
             }
 
@@ -120,7 +122,8 @@ class BpSessionController extends BaseApiController
             'obtenus.classement',
             'obtenus.destination',
             'employes.employe.poste',
-            'evenements.operateur'
+            'evenements.operateur',
+            'calcul'
         );
 
         return $this->created(
@@ -202,7 +205,8 @@ class BpSessionController extends BaseApiController
                     'obtenus.produit',
                     'obtenus.classement',
                     'obtenus.destination',
-                    'employes.employe'
+                    'employes.employe.poste',
+                    'calcul'
                 )
             ),
             'Session validée. Stocks mis à jour.'
@@ -269,18 +273,19 @@ class BpSessionController extends BaseApiController
 
         $validated = $request->validate([
             'employe_id' => ['required', 'exists:employes,id'],
-            'heures_brutes' => ['required', 'numeric', 'min:0.1'],
+            'heures_brutes' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $tauxHoraire = Employe::find($validated['employe_id'])?->tauxHoraireActuel() ?? 0;
+        $tauxHoraire = Employe::with('poste')->find($validated['employe_id'])?->tauxHoraireActuel() ?? 0;
+        $heuresBrutes = (float) ($validated['heures_brutes'] ?? 0);
 
         $bpEmploye = BpEmploye::create([
             'bp_session_id' => $session->id,
             'employe_id' => $validated['employe_id'],
-            'heures_brutes' => $validated['heures_brutes'],
-            'heures_effectives' => $validated['heures_brutes'],
+            'heures_brutes' => $heuresBrutes,
+            'heures_effectives' => $heuresBrutes,
             'taux_horaire' => $tauxHoraire,
-            'cout' => round($validated['heures_brutes'] * (float) $tauxHoraire, 2),
+            'cout' => round($heuresBrutes * (float) $tauxHoraire, 2),
         ]);
 
         return $this->created($bpEmploye->load('employe.poste'));
@@ -296,7 +301,7 @@ class BpSessionController extends BaseApiController
         }
 
         $validated = $request->validate([
-            'type_evenement' => ['required', 'in:debut,fin,panne,autre'],
+            'type_evenement' => ['required', 'in:production,pause,panne,autre'],
             'heure_debut' => ['required', 'date_format:H:i'],
             'heure_fin' => ['nullable', 'date_format:H:i'],
             'description' => ['nullable', 'string', 'max:500'],

@@ -65,7 +65,7 @@ class Employe extends Model
 
     public function tauxHoraireActuel(): float
     {
-        return (float) $this->poste->taux_horaire;
+        return $this->poste?->tauxHoraireCalcule() ?? 0.0;
     }
 
     public function estEnPoste(): bool

@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\Achat\DemandeAchatController;
 use App\Http\Controllers\Api\Achat\JournalAchatController;
 use App\Http\Controllers\Api\Production\BonProductionController;
 use App\Http\Controllers\Api\Production\BpSessionController;
+use App\Http\Controllers\Api\Production\ProductionCostController;
 use App\Http\Controllers\Api\Production\MachineController;
 use App\Http\Controllers\Api\Recyclage\BonTransformationController;
 use App\Http\Controllers\Api\Recyclage\BtSessionController;
@@ -94,7 +95,8 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::post('produits/import', [ProduitController::class, 'import']);
                 Route::apiResource('categories', CategorieProduitController::class);
-
+                Route::get('classements', [ClassementProduitController::class, 'index']);
+                
                 Route::post('matieres-premieres/import', [MatierePremierController::class, 'import']);
                 Route::apiResource('matieres-premieres', MatierePremierController::class);
 
@@ -175,6 +177,8 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('bons-production', BonProductionController::class);
                 Route::post('bons-production/{bonsProduction}/cloture', [BonProductionController::class, 'cloture']);
                 Route::post('bons-production/{bonsProduction}/annuler', [BonProductionController::class, 'annuler']);
+                Route::get('couts/produits/{produit}', [ProductionCostController::class, 'parProduit']);
+                Route::get('couts/bons-production/{bonsProduction}', [ProductionCostController::class, 'parBonProduction']);
                 Route::apiResource('bons-production.sessions', BpSessionController::class)
                     ->shallow();
                 Route::post('sessions/{session}/valider', [BpSessionController::class, 'valider']);

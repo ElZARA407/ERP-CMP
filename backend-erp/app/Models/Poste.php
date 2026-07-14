@@ -31,14 +31,26 @@ class Poste extends Model
     }
 
     // ── Méthodes métier ────────────────────────────────────
+    public function tauxHoraireCalcule(): float
+    {
+        if ($this->salaire_mensuel !== null && (float) $this->salaire_mensuel > 0) {
+            return round(((float) $this->salaire_mensuel) / 173.33, 2);
+        }
+
+        return round((float) $this->taux_horaire, 2);
+    }
+
     public function coutJournalier(float $heuresParJour = 8.0): float
     {
-        return round($this->taux_horaire * $heuresParJour, 2);
+        return round($this->tauxHoraireCalcule() * $heuresParJour, 2);
     }
 
     public function coutMensuel(float $heuresParMois = 173.33): float
     {
-        return $this->salaire_mensuel
-            ?? round($this->taux_horaire * $heuresParMois, 2);
+        if ($this->salaire_mensuel !== null && (float) $this->salaire_mensuel > 0) {
+            return round((float) $this->salaire_mensuel, 2);
+        }
+
+        return round($this->tauxHoraireCalcule() * $heuresParMois, 2);
     }
 }

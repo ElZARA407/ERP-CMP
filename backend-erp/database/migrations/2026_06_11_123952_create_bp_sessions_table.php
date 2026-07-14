@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('bon_production_id')
                   ->constrained('bon_productions')
                   ->cascadeOnDelete();
-            $table->unsignedInteger('session_numero');
+            $table->string('session_numero', 20);   
             $table->date('date_session');
             $table->string('machine_production', 100);
             $table->decimal('cout_electricite', 12, 2)->default(0);

@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 class ProductionService
 {
     public function __construct(
-        private readonly StockService $stockService
+        private readonly StockService $stockService,
+        private readonly ProductionCostService $productionCostService
     ) {}
 
     public function validerSession(BpSession $session, Utilisateur $valideur): void
@@ -32,7 +33,6 @@ class ProductionService
 
             foreach ($session->matieres as $bpMp) {
                 $quantiteNette = (float) $bpMp->quantite_utilisee;
-                // $quantiteNette = (float) $bpMp->quantite_utilisee - (float) $bpMp->quantite_restituee;
                 if ($quantiteNette > 0) {
                     $this->stockService->sortie(
                         locationId: $session->bonProduction->location_id,
@@ -45,7 +45,6 @@ class ProductionService
                         classementId: null
                     );
                 }
-
                 if ((float) $bpMp->quantite_restituee > 0) {
                     $this->stockService->retour(
                         locationId: $session->bonProduction->location_id,
@@ -58,10 +57,6 @@ class ProductionService
                         classementId: null
                     );
                 }
-
-                $bpMp->update([
-                    'cout_matiere' => round($quantiteNette * (float) $bpMp->matiere->prix_moyen, 2),
-                ]);
             }
 
             foreach ($session->obtenus as $bpObtenu) {
@@ -81,19 +76,11 @@ class ProductionService
                 );
             }
 
-            foreach ($session->employes as $bpEmploye) {
-                $heuresEffectives = (float) $bpEmploye->heures_brutes;
-                $cout = round($heuresEffectives * (float) $bpEmploye->taux_horaire, 2);
-
-                $bpEmploye->update([
-                    'heures_effectives' => $heuresEffectives,
-                    'cout' => $cout,
-                ]);
-            }
+            $calcul = $this->productionCostService->calculateAndPersistSession($session, $valideur);
 
             $session->update([
                 'statut' => 'validee',
-                'cout_total' => $session->coutTotal(),
+                'cout_total' => (float) $calcul->cout_global,
                 'valide_by' => $valideur->id,
             ]);
 

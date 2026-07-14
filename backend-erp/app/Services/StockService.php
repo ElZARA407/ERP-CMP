@@ -22,12 +22,13 @@ class StockService
         string $referenceType,
         int $referenceId,
         Utilisateur $operateur,
-        ?int $classementId = null
+        ?int $classementId = null,
+        ?string $motif = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
             $quantite, $referenceType, $referenceId,
-            $operateur, $classementId
+            $operateur, $classementId, $motif
         ) {
             $this->stockRepository->incrementer(
                 $locationId,
@@ -46,7 +47,8 @@ class StockService
                 referenceType: $referenceType,
                 referenceId: $referenceId,
                 operateur: $operateur,
-                classementId: $classementId
+                classementId: $classementId,
+                motif: $motif
             );
         });
     }
@@ -59,12 +61,13 @@ class StockService
         string $referenceType,
         int $referenceId,
         Utilisateur $operateur,
-        ?int $classementId = null
+        ?int $classementId = null,
+        ?string $motif = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
             $quantite, $referenceType, $referenceId,
-            $operateur, $classementId
+            $operateur, $classementId, $motif
         ) {
             $this->stockRepository->decrementer(
                 $locationId,
@@ -83,7 +86,8 @@ class StockService
                 referenceType: $referenceType,
                 referenceId: $referenceId,
                 operateur: $operateur,
-                classementId: $classementId
+                classementId: $classementId,
+                motif: $motif
             );
         });
     }
@@ -96,12 +100,13 @@ class StockService
         string $referenceType,
         int $referenceId,
         Utilisateur $operateur,
-        ?int $classementId = null
+        ?int $classementId = null,
+        ?string $motif = null
     ): void {
         DB::transaction(function () use (
             $locationId, $entiteType, $entiteId,
             $quantite, $referenceType, $referenceId,
-            $operateur, $classementId
+            $operateur, $classementId, $motif
         ) {
             $this->stockRepository->incrementer(
                 $locationId,
@@ -120,7 +125,8 @@ class StockService
                 referenceType: $referenceType,
                 referenceId: $referenceId,
                 operateur: $operateur,
-                classementId: $classementId
+                classementId: $classementId,
+                motif: $motif
             );
         });
     }
@@ -209,10 +215,57 @@ class StockService
             'reference_id' => $referenceId,
             'utilisateur_id' => $operateur->id,
             'date_mouvement' => now(),
-            'motif' => $motif,
+            'motif' => $this->resolveMotif($motif, $referenceType, $type),
             'stock_theorique' => $stockTheorique,
             'stock_physique' => $stockPhysique,
             'ecart' => $ecart,
         ]);
+    }
+
+    private function resolveMotif(?string $motif, string $referenceType, TypeMouvement $type): string
+    {
+        $motif = trim((string) $motif);
+
+        if ($motif !== '') {
+            return $motif;
+        }
+
+        $reference = strtolower(trim($referenceType));
+
+        $map = [
+            'bp_session' => 'production',
+            'production' => 'production',
+
+            'journal_achat' => 'achat',
+            'achat' => 'achat',
+            'bon_reception' => 'réception BR',
+            'reception_br' => 'réception BR',
+            'br' => 'réception BR',
+
+            'bt_session' => 'recyclage',
+            'recyclage' => 'recyclage',
+            'broyage' => 'recyclage',
+            'transformation' => 'recyclage',
+
+            'livraison' => 'livraison',
+            'vente_directe' => 'vente directe',
+            'bon_sortie' => 'bon de sortie',
+
+            'ajustement_inventaire' => 'inventaire',
+            'inventaire' => 'inventaire',
+
+            'livraison_annulee' => 'annulation livraison',
+            'vente_directe_annulee' => 'annulation vente directe',
+        ];
+
+        if (isset($map[$reference])) {
+            return $map[$reference];
+        }
+
+        if ($type === TypeMouvement::INVENTAIRE) {
+            return 'inventaire';
+        }
+
+        return ucfirst(str_replace('_', ' ', $reference));
     }
 }

@@ -12,8 +12,8 @@ class ClassementProduitSeeder extends Seeder
         $this->command->info('Création des classements de qualité...');
 
         $classements = [
-            ['qualite' => '1er',   'libelle' => '1ère qualité', 'actif' => true],
-            ['qualite' => '2e',    'libelle' => '2ème qualité', 'actif' => true],
+            ['qualite' => '1er',   'libelle' => 'Q1', 'actif' => true],
+            ['qualite' => '2e',    'libelle' => 'Q2', 'actif' => true],
             ['qualite' => 'casse', 'libelle' => 'Cassé',        'actif' => true],
         ];
 

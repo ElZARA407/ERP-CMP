@@ -90,8 +90,20 @@ class BonProduction extends Model
         );
     }
 
-    public function prochainNumeroSession(): int
+    public function prochainNumeroSession(): string
     {
-        return (int) $this->sessions()->max('session_numero') + 1;
+        $year = date('Y');
+        $prefix = "BP-{$year}-";
+
+        $last = $this->sessions()
+            ->where('session_numero', 'like', $prefix . '%')
+            ->orderByDesc('id')
+            ->value('session_numero');
+
+        $next = $last
+            ? (int) substr($last, strlen($prefix)) + 1
+            : 1;
+
+        return $prefix . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
     }
 }
