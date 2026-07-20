@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\Logistique\LivraisonController;
 use App\Http\Controllers\Api\Logistique\BonSortieController;
 use App\Http\Controllers\Api\Finance\FactureController;
 use App\Http\Controllers\Api\Kpi\DashboardController;
+use App\Http\Controllers\Api\Documents\PdfExportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -162,6 +163,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('demandes/{demande}/soumettre', [DemandeAchatController::class, 'soumettre']);
                 Route::post('demandes/{demande}/approuver', [DemandeAchatController::class, 'approuver']);
                 Route::post('demandes/{demande}/rejeter', [DemandeAchatController::class, 'rejeter']);
+                Route::get('bons-reception/{br}/pdf', [PdfExportController::class, 'journalAchat']);
 
                 Route::apiResource('bons-reception', JournalAchatController::class);
                 Route::post('bons-reception/{br}/valider', [JournalAchatController::class, 'valider']);
@@ -210,6 +212,8 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('livraisons', LivraisonController::class);
                 Route::post('livraisons/{livraison}/confirmer', [LivraisonController::class, 'confirmer']);
                 Route::post('livraisons/{livraison}/annuler', [LivraisonController::class, 'annuler']);
+                Route::get('livraisons/{livraison}/pdf', [PdfExportController::class, 'livraison']);
+                Route::get('bons-sortie/{bon}/pdf', [PdfExportController::class, 'bonSortie']);
                 Route::apiResource('livraisons.lignes', \App\Http\Controllers\Api\Logistique\LigneLivraisonController::class)
                     ->shallow();
 
@@ -227,6 +231,7 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('factures', FactureController::class);
                 Route::post('factures/{facture}/payer', [FactureController::class, 'payer']);
                 Route::post('factures/{facture}/annuler', [FactureController::class, 'annuler']);
+                Route::get('factures/{facture}/pdf', [PdfExportController::class, 'facture']);
                 Route::get('factures/retards', [FactureController::class, 'enRetard']);
             });
     });

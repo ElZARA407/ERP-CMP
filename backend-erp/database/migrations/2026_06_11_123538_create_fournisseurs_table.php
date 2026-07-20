@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('reference', 30)->unique();
             $table->string('NIF', 50)->nullable();
             $table->string('STAT', 50)->nullable();
+            $table->boolean('est_divers')->default(false);
             $table->text('adresse');
             $table->string('email', 150)->nullable();
             $table->string('contact', 30);

@@ -64,6 +64,7 @@ class FournisseurSeeder extends Seeder
                 'NIF' => '5001234565',
                 'STAT' => '100-200-304',
                 'adresse' => 'Zone forello, Tanjombato',
+                'est_divers' => true,
                 'email' => 'contact@b2blogistics.mg',
                 'contact' => '+261 34 21 100 05',
                 'interlocutaire' => 'Logistique',

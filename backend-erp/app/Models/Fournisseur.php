@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(
     'nom', 'reference', 'NIF', 'STAT',
     'adresse', 'email', 'contact',
-    'interlocutaire', 'code_compta', 'actif'
+    'interlocutaire', 'code_compta', 'actif','est_divers',
 )]
 class Fournisseur extends Model
 {
@@ -25,6 +25,7 @@ class Fournisseur extends Model
     {
         return [
             'actif' => 'boolean',
+            'est_divers' => 'boolean',
         ];
     }
 

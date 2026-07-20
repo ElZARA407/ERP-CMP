@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('NIF', 50)->nullable();
             $table->string('STAT', 50)->nullable();
             $table->text('adresse');
+            $table->boolean('est_divers')->default(false);
             $table->string('email', 150)->nullable();
             $table->string('contact', 30);
             $table->string('interlocutaire', 150)->nullable();

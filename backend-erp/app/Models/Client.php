@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'nom', 'reference', 'NIF', 'STAT',
     'adresse', 'email', 'contact',
     'interlocutaire', 'code_compta',
-    'facturation', 'actif'
+    'facturation', 'actif','est_divers',
 )]
 class Client extends Model
 {
@@ -26,6 +26,7 @@ class Client extends Model
     {
         return [
             'actif' => 'boolean',
+            'est_divers' => 'boolean',
         ];
     }
 
