@@ -32,7 +32,7 @@ class StockRepository implements StockRepositoryInterface
                 'entite_type' => $entiteType,
                 'entite_id' => $entiteId,
                 'classement_id' => $classementId,
-                'stock_total' => $quantite,
+                'stock_total' => 0,
             ]
         );
     }

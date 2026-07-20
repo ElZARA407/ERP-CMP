@@ -20,8 +20,12 @@ class MatierePremiereResource extends JsonResource
             'prix_moyen'  => (float) $this->prix_moyen, 
             'seuil'       => (float) $this->seuil,
             'actif'       => $this->actif,
-            'stock_total' => $this->stockTotal(),
-            'en_rupture'  => $this->estEnRupture(),
+            'stock_total' => $this->whenLoaded('stocks')
+                ? (float) $this->stocks->sum('stock_total')
+                : $this->stockTotal(),
+            'en_rupture' => $this->whenLoaded('stocks')
+                ? $this->stocks->sum('stock_total') <= 0
+                : $this->estEnRupture(),
             'created_at'  => $this->created_at?->toDateString(),
         ];
     }

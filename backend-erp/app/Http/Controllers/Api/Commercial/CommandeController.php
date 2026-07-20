@@ -16,7 +16,13 @@ class CommandeController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Commande::with('client', 'location', 'createur');
+        $query = Commande::with([
+            'client',
+            'location',
+            'createur',
+            'lignes.produit',
+            'lignes.classement',
+        ]);
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);

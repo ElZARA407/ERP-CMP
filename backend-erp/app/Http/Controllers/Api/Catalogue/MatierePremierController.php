@@ -18,7 +18,12 @@ class MatierePremierController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = MatierePremiere::query();
+        $locationId = (int) $request->integer('location_id');
+
+        $query = MatierePremiere::query()->with([
+            'stocks' => fn ($stockQuery) => $stockQuery
+                ->when($locationId > 0, fn ($sq) => $sq->parLocation($locationId)),
+        ]);
 
         if ($request->filled('type')) {
             $query->where('type', $request->type);
@@ -35,6 +40,12 @@ class MatierePremierController extends BaseApiController
             });
         }
 
+        if ($locationId > 0) {
+            $query->whereHas('stocks', fn ($stockQuery) => $stockQuery
+                ->parLocation($locationId)
+                ->where('stock_total', '>', 0));
+        }
+
         $matieres = $query
             ->orderBy('nom')
             ->paginate($request->get('per_page', config('api.per_page')));
@@ -43,7 +54,6 @@ class MatierePremierController extends BaseApiController
             MatierePremiereResource::collection($matieres)->response()->getData(true)
         );
     }
-
     public function import(Request $request): JsonResponse
     {
         $validated = $request->validate([

@@ -223,6 +223,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('finance')
             ->middleware('role:admin,finance')
             ->group(function () {
+                Route::post('factures/preview', [FactureController::class, 'preview']);
                 Route::apiResource('factures', FactureController::class);
                 Route::post('factures/{facture}/payer', [FactureController::class, 'payer']);
                 Route::post('factures/{facture}/annuler', [FactureController::class, 'annuler']);

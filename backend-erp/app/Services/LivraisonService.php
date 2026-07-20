@@ -52,7 +52,7 @@ class LivraisonService
             throw new \DomainException("La livraison {$livraison->numero} ne peut pas etre annulee.");
         }
 
-        if ($livraison->facture()->exists()) {
+        if ($livraison->estFacturee()) {
             throw new \DomainException("La livraison {$livraison->numero} est deja facturee et ne peut pas etre annulee.");
         }
 

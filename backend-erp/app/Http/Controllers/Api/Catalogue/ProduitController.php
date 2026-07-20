@@ -19,7 +19,14 @@ class ProduitController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Produit::with('categorie', 'stocks.classement');
+        $locationId = (int) $request->integer('location_id');
+
+        $query = Produit::query()->with([
+            'categorie',
+            'stocks' => fn ($stockQuery) => $stockQuery
+                ->when($locationId > 0, fn ($sq) => $sq->parLocation($locationId))
+                ->with('classement'),
+        ]);
 
         if ($request->filled('categorie_id')) {
             $query->where('categorie_id', $request->categorie_id);
@@ -34,6 +41,12 @@ class ProduitController extends BaseApiController
                 $q->where('designation', 'like', "%{$request->search}%")
                     ->orWhere('nomencla', 'like', "%{$request->search}%");
             });
+        }
+
+        if ($locationId > 0) {
+            $query->whereHas('stocks', fn ($stockQuery) => $stockQuery
+                ->parLocation($locationId)
+                ->where('stock_total', '>', 0));
         }
 
         $produits = $query

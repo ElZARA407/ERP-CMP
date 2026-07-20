@@ -18,7 +18,14 @@ class VenteDirecteController extends BaseApiController
 
     public function index(Request $request): JsonResponse
     {
-        $query = VenteDirecte::query()->with(['client', 'location', 'createur']);
+        $query = VenteDirecte::query()->with([
+            'client',
+            'location',
+            'createur',
+            'lignes.produit',
+            'lignes.classement',
+            'lignes.lignesLivraison',
+        ]);
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -118,6 +125,7 @@ class VenteDirecteController extends BaseApiController
             'lignes.classement',
             'createur',
             'livraisons',
+            'lignes.lignesLivraison',
         ]);
 
         return $this->success($this->formatVenteDirecte($vente));
@@ -347,16 +355,23 @@ class VenteDirecteController extends BaseApiController
                 'id' => $venteDirecte->location->id,
                 'nom' => $venteDirecte->location->nom,
             ] : null,
-
+            
             'lignes' => $venteDirecte->lignes->map(function ($ligne) {
                 $produit = $ligne->produit;
                 $classement = $ligne->classement;
+
+                $quantiteLivree = $ligne->relationLoaded('lignesLivraison')
+                    ? (float) $ligne->lignesLivraison->sum('quantite_livree')
+                    : (float) $ligne->lignesLivraison()->sum('quantite_livree');
+
+                $quantiteRestante = max(0, (float) $ligne->quantite - $quantiteLivree);
 
                 return [
                     'id' => $ligne->id,
                     'produit_id' => $ligne->produit_id,
                     'classement_id' => $ligne->classement_id,
                     'quantite' => (float) $ligne->quantite,
+                    'quantite_restante' => $quantiteRestante,
                     'prix_unitaire' => (float) $ligne->prix_unitaire,
                     'total_ligne' => (float) $ligne->total_ligne,
 

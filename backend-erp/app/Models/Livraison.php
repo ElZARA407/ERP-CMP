@@ -3,14 +3,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Table;
+use App\Traits\HasReference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Traits\HasReference;
 
 #[Table('livraisons')]
 #[Fillable(
@@ -23,7 +24,6 @@ class Livraison extends Model
 {
     use HasFactory, HasReference;
 
-    // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
@@ -31,7 +31,6 @@ class Livraison extends Model
         ];
     }
 
-    // ── Scopes ─────────────────────────────────────────────
     public function scopePreparees($query)
     {
         return $query->where('statut', 'prepare');
@@ -42,7 +41,6 @@ class Livraison extends Model
         return $query->where('statut', 'livre');
     }
 
-    // ── Relations ──────────────────────────────────────────
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
@@ -63,22 +61,25 @@ class Livraison extends Model
         return $this->hasOne(Facture::class);
     }
 
-    /**
-     * Résolution polymorphique de la source.
-     */
+    public function factures(): BelongsToMany
+    {
+        return $this->belongsToMany(Facture::class, 'facture_livraisons')
+            ->withPivot(['total_livraison', 'lignes_count'])
+            ->withTimestamps();
+    }
+
     public function source()
     {
-        return match($this->source_type) {
-            'commande'      => $this->belongsTo(Commande::class, 'source_id'),
+        return match ($this->source_type) {
+            'commande' => $this->belongsTo(Commande::class, 'source_id'),
             'vente_directe' => $this->belongsTo(VenteDirecte::class, 'source_id'),
-            default         => null,
+            default => null,
         };
     }
 
-    // ── Méthodes métier ────────────────────────────────────
     public function estFacturee(): bool
     {
-        return $this->facture()->exists();
+        return $this->facture()->exists() || $this->factures()->exists();
     }
 
     public function totalLivre(): float
