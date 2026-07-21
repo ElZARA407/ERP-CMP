@@ -68,9 +68,12 @@ class ClientController extends BaseApiController
     // ── DELETE /clients/{id} ──────────────────────────────
     public function destroy(Client $client): JsonResponse
     {
-        $client->delete(); // Soft delete
+        $client->update(['actif' => false]);
 
-        return $this->success(null, 'Client désactivé.');
+        return $this->success(
+            new ClientResource($client->fresh()),
+            'Client archivé.'
+        );
     }
 
     // ── GET /clients/{id}/encours ─────────────────────────

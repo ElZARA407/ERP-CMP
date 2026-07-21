@@ -124,6 +124,59 @@ class StockController extends BaseApiController
 
         return $this->success(StockResource::collection($stocks));
     }
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'location_id' => ['required', 'integer', 'exists:locations,id'],
+            'entite_type' => ['required', 'in:matiere,produit'],
+            'entite_id' => ['required', 'integer', 'min:1'],
+            'classement_id' => ['nullable', 'integer', 'exists:classement_produits,id'],
+            'stock_total' => ['required', 'numeric', 'min:0'],
+            'motif' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($validated['entite_type'] === 'produit' && empty($validated['classement_id'])) {
+            return $this->error('Le classement est requis pour un stock de produit.', 422);
+        }
+
+        if ($validated['entite_type'] === 'matiere' && !empty($validated['classement_id'])) {
+            return $this->error('Le classement doit rester vide pour une matière première.', 422);
+        }
+
+        if ($validated['entite_type'] === 'produit' && !Produit::whereKey($validated['entite_id'])->exists()) {
+            return $this->error('Produit introuvable.', 422);
+        }
+
+        if ($validated['entite_type'] === 'matiere' && !MatierePremiere::whereKey($validated['entite_id'])->exists()) {
+            return $this->error('Matière première introuvable.', 422);
+        }
+
+        try {
+            /** @var Utilisateur $operateur */
+            $operateur = $request->user();
+
+            $mouvement = $this->stockService->ajusterInventaire(
+                locationId: (int) $validated['location_id'],
+                entiteType: $validated['entite_type'],
+                entiteId: (int) $validated['entite_id'],
+                stockPhysique: (float) $validated['stock_total'],
+                motif: trim((string) ($validated['motif'] ?? '')) ?: 'inventaire',
+                operateur: $operateur,
+                classementId: !empty($validated['classement_id']) ? (int) $validated['classement_id'] : null
+            );
+
+            return $this->created(
+                new MouvementStockResource($mouvement->load('location', 'utilisateur', 'classement', 'entite')),
+                'Stock initial déclaré avec mouvement inventaire.'
+            );
+        } catch (\DomainException $e) {
+            return $this->error($e->getMessage(), 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error('Création du stock initial impossible.', 500);
+        }
+    }
 
     public function import(Request $request): JsonResponse
     {
@@ -162,25 +215,48 @@ class StockController extends BaseApiController
                         ], 422);
                     }
                 }
-
-                DB::transaction(function () use ($file, $requestedSheets) {
-                    Excel::import(new StockImport($requestedSheets), $file);
-                });
-            } else {
-                if ($requestedSheets !== []) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'La liste des feuilles nommées est réservée aux fichiers Excel (.xls, .xlsx).',
-                        'data' => null,
-                        'errors' => null,
-                        'status' => 422,
-                    ], 422);
-                }
-
-                DB::transaction(function () use ($file) {
-                    Excel::import(new StockImport(), $file);
-                });
+            } elseif ($requestedSheets !== []) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La liste des feuilles nommées est réservée aux fichiers Excel (.xls, .xlsx).',
+                    'data' => null,
+                    'errors' => null,
+                    'status' => 422,
+                ], 422);
             }
+
+            /** @var Utilisateur $operateur */
+            $operateur = $request->user();
+            $import = new StockImport($requestedSheets);
+            $importedCount = 0;
+            $unchangedCount = 0;
+
+            DB::transaction(function () use ($file, $import, $operateur, &$importedCount, &$unchangedCount) {
+                Excel::import($import, $file);
+
+                foreach ($import->rows() as $row) {
+                    try {
+                        $this->stockService->ajusterInventaire(
+                            locationId: (int) $row['location_id'],
+                            entiteType: (string) $row['entite_type'],
+                            entiteId: (int) $row['entite_id'],
+                            stockPhysique: (float) $row['stock_total'],
+                            motif: 'inventaire',
+                            operateur: $operateur,
+                            classementId: $row['classement_id'] !== null ? (int) $row['classement_id'] : null
+                        );
+
+                        $importedCount++;
+                    } catch (\DomainException $e) {
+                        if (str_contains(strtolower($e->getMessage()), 'aucun ecart')) {
+                            $unchangedCount++;
+                            continue;
+                        }
+
+                        throw $e;
+                    }
+                }
+            });
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -189,7 +265,7 @@ class StockController extends BaseApiController
                 'errors' => null,
                 'status' => 422,
             ], 422);
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException|\DomainException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -211,8 +287,11 @@ class StockController extends BaseApiController
 
         return response()->json([
             'success' => true,
-            'message' => 'Stock importé avec succès.',
-            'data' => null,
+            'message' => 'Stock importé avec succès. Mouvements inventaire générés.',
+            'data' => [
+                'imported_count' => $importedCount,
+                'unchanged_count' => $unchangedCount,
+            ],
             'errors' => null,
             'status' => 200,
         ], 200);

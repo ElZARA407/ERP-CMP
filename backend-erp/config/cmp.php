@@ -8,9 +8,9 @@ return [
         'city' => env('CMP_COMPANY_CITY', 'ANTANANARIVO 101'),
         'nif' => env('CMP_COMPANY_NIF', ''),
         'stat' => env('CMP_COMPANY_STAT', ''),
-        'rcs' => env('CMP_COMPANY_RCS', ''),
-        'phone' => env('CMP_COMPANY_PHONE', ''),
-        'email' => env('CMP_COMPANY_EMAIL', ''),
+        // 'rcs' => env('CMP_COMPANY_RCS', ''),
+        // 'phone' => env('CMP_COMPANY_PHONE', ''),
+        // 'email' => env('CMP_COMPANY_EMAIL', ''),
     ],
 
     'pdf' => [

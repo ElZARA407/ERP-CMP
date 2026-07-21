@@ -17,6 +17,7 @@ class StoreClientRequest extends FormRequest
         return [
             'nom'            => ['required', 'string', 'max:150'],
             'reference'      => ['required', 'string', 'max:30', 'unique:clients,reference'],
+            'est_divers'     => ['sometimes', 'boolean'],
             'NIF'            => ['nullable', 'string', 'max:50'],
             'STAT'           => ['nullable', 'string', 'max:50'],
             'adresse'        => ['required', 'string'],
@@ -25,6 +26,7 @@ class StoreClientRequest extends FormRequest
             'interlocutaire' => ['nullable', 'string', 'max:150'],
             'code_compta'    => ['nullable', 'string', 'max:20'],
             'facturation'    => ['nullable', 'string', 'max:20'],
+            'actif'          => ['sometimes', 'boolean'],
         ];
     }
 }

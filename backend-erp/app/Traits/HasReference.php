@@ -20,7 +20,7 @@ trait HasReference
 {
     public static function generateReference(
         string $prefix,
-        int $padding = 3,
+        int $padding = 4,
         string $yearFormat = 'Y'
     ): string {
         $year = date($yearFormat);
@@ -44,7 +44,7 @@ trait HasReference
      * Exemple dans un Service :
      *   $commande->numero = Commande::generateReference('CMD');
      */
-    public static function prochainNumero(string $prefix, int $padding = 3): string
+    public static function prochainNumero(string $prefix, int $padding = 4): string
     {
         return static::generateReference($prefix, $padding);
     }

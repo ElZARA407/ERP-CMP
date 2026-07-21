@@ -158,8 +158,9 @@ class StockService
 
             $stockTheorique = (float) $stock->stock_total;
             $ecart = round($stockPhysique - $stockTheorique, 3);
+            $premiereDeclaration = $stock->wasRecentlyCreated;
 
-            if ($ecart == 0.0) {
+            if ($ecart == 0.0 && !$premiereDeclaration) {
                 throw new \DomainException('Aucun ecart detecte pour cet inventaire.');
             }
 

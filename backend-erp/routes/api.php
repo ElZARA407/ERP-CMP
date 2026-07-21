@@ -112,6 +112,7 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::post('import', [StockController::class, 'import']);
                 Route::get('/', [StockController::class, 'index']);
+                Route::post('/', [StockController::class, 'store']);
                 Route::get('/ruptures', [StockController::class, 'ruptures']);
                 Route::get('/par-location/{id}', [StockController::class, 'parLocation']);
                 Route::get('/par-produit/{id}', [StockController::class, 'parProduit']);

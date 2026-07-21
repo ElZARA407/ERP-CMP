@@ -66,8 +66,8 @@
         }
 
         .brand-logo {
-            width: 105px;
-            max-height: 50px;
+            width: 150px;
+            max-height: 100px;
             object-fit: contain;
             margin-bottom: 2px;
         }
@@ -165,10 +165,16 @@
         }
 
         .lines th {
+            background: #eeeeee;
             font-size: 4.75pt;
             font-weight: 700;
             text-align: center;
             line-height: 1.1;
+        }
+
+        .lines .num-col {
+            width: 13px;
+            background: #eeeeee;
         }
 
         .lines td {
@@ -239,6 +245,7 @@
 
         .footer {
             margin-top: 2px;
+            margin-left: 5mm;
             font-size: 4.1pt;
             line-height: 1.2;
         }
@@ -338,7 +345,7 @@
                     <table class="lines">
                         <thead>
                             <tr>
-                                <th rowspan="2" style="width: 18px;">N°</th>
+                                <th rowspan="2" class="num-col">N°</th>
                                 <th rowspan="2" style="width: 50px;">Référence</th>
                                 <th rowspan="2">Désignation</th>
                                 <th colspan="2" style="width: 105px;">Colisage</th>
@@ -348,14 +355,16 @@
                             <tr>
                                 <th style="width: 58px;">Type</th>
                                 <th style="width: 47px;">Qté</th>
-                                <th style="width: 60px;">reçu(e) par colis</th>
+                                <th style="width: 60px;">
+                                    {{ $isReception ? 'reçu(e) par colis' : 'livré(e) par colis' }}
+                                </th>
                                 <th style="width: 45px;">Totale</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($lines as $index => $line)
                                 <tr>
-                                    <td class="center">{{ $index + 1 }}</td>
+                                    <td class="center num-col">{{ $index + 1 }}</td>
                                     <td>{{ $line['reference'] ?? '' }}</td>
                                     <td>{{ $line['designation'] ?? '' }}</td>
                                     <td class="center">{{ $line['colisage_type'] ?? $line['colisage'] ?? '' }}</td>
@@ -366,7 +375,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td class="center">1</td>
+                                    <td class="center num-col">1</td>
                                     <td></td>
                                     <td></td>
                                     <td class="center"></td>

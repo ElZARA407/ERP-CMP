@@ -58,7 +58,7 @@ class BonProductionController extends BaseApiController
         $this->authorize('create', BonProduction::class);
 
         $bp = BonProduction::create([
-            'numero' => BonProduction::generateReference('OF',3,'y'),
+            'numero' => BonProduction::generateReference('OF', 4, 'y'),
             ...$request->validated(),
             'statut' => StatutProduction::OUVERT->value,
             'cout_total' => 0,
@@ -118,21 +118,6 @@ class BonProductionController extends BaseApiController
         return $this->forbidden('Les bons de production ne peuvent pas être supprimés.');
     }
 
-    // public function cloture(BonProduction $bonsProduction): JsonResponse
-    // {
-    //     $this->authorize('cloture', $bonsProduction);
-
-    //     try {
-    //         $this->productionService->cloturerBP($bonsProduction, auth()->user());
-    //     } catch (\DomainException $e) {
-    //         return $this->error($e->getMessage(), 422);
-    //     }
-
-    //     return $this->success(
-    //         new BonProductionResource($bonsProduction->fresh(['location', 'produit', 'machine'])),
-    //         'Bon de production clôturé.'
-    //     );
-    // }
     public function cloture(BonProduction $bonsProduction): JsonResponse
     {
         $this->authorize('cloture', $bonsProduction);

@@ -19,6 +19,7 @@ class UpdateClientRequest extends FormRequest
         return [
             'nom'            => ['sometimes', 'string', 'max:150'],
             'reference'      => ['sometimes', 'string', 'max:30', "unique:clients,reference,{$id}"],
+            'est_divers'     => ['sometimes', 'boolean'],
             'NIF'            => ['nullable', 'string', 'max:50'],
             'STAT'           => ['nullable', 'string', 'max:50'],
             'adresse'        => ['sometimes', 'string'],

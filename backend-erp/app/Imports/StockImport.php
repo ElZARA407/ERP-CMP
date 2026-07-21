@@ -6,11 +6,11 @@ use App\Models\ClassementProduit;
 use App\Models\Location;
 use App\Models\MatierePremiere;
 use App\Models\Produit;
-use App\Models\Stock;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
-use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -18,20 +18,51 @@ use Maatwebsite\Excel\Validators\Failure;
 
 class StockImport implements WithMultipleSheets
 {
+    private array $rows = [];
+    private array $importErrors = [];
+
     public function __construct(private readonly array $sheetNames = [])
     {
     }
 
     public function sheets(): array
     {
-        $sheetNames = $this->normalizeSheetNames();
         $imports = [];
 
-        foreach ($sheetNames as $sheetName) {
-            $imports[$sheetName] = new StockSheetImport();
+        foreach ($this->normalizeSheetNames() as $sheetName) {
+            $imports[$sheetName] = new StockSheetImport($this);
         }
 
         return $imports;
+    }
+
+    public function addRow(array $row): void
+    {
+        $this->rows[] = $row;
+    }
+
+    public function addFailure(Failure $failure): void
+    {
+        $error = [
+            'ligne' => $failure->row(),
+            'colonne' => $failure->attribute(),
+            'erreurs' => $failure->errors(),
+            'valeurs' => $failure->values(),
+        ];
+
+        $this->importErrors[] = $error;
+
+        Log::warning('Ligne ignorée (import stock)', $error);
+    }
+
+    public function rows(): array
+    {
+        return $this->rows;
+    }
+
+    public function getImportErrors(): array
+    {
+        return $this->importErrors;
     }
 
     private function normalizeSheetNames(): array
@@ -43,21 +74,28 @@ class StockImport implements WithMultipleSheets
 
         $names = array_values(array_unique(array_filter($names, static fn (string $name) => $name !== '')));
 
-        if ($names === []) {
-            return ['stock'];
-        }
-
-        return $names;
+        return $names === [] ? ['stock'] : $names;
     }
 }
 
-class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, SkipsEmptyRows, SkipsOnFailure
+class StockSheetImport implements ToCollection, WithHeadingRow, WithValidation, SkipsEmptyRows, SkipsOnFailure
 {
-    private array $importErrors = [];
+    public function __construct(private readonly StockImport $parent)
+    {
+    }
 
-    public function model(array $row): ?Stock
+    public function collection(Collection $rows): void
+    {
+        foreach ($rows as $row) {
+            $normalized = $this->normalizeRow($row->toArray());
+            $this->parent->addRow($normalized);
+        }
+    }
+
+    private function normalizeRow(array $row): array
     {
         $entiteType = strtolower(trim((string) ($row['entite_type'] ?? '')));
+
         if (!in_array($entiteType, ['matiere', 'produit'], true)) {
             throw new \RuntimeException("Type d'entité invalide pour l'import stock.");
         }
@@ -74,34 +112,37 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
             ?? 0
         );
 
+        if ($stockTotal === null || $stockTotal < 0) {
+            throw new \RuntimeException('Le stock total importé doit être supérieur ou égal à 0.');
+        }
+
         if ($entiteType === 'produit' && $classementId === null) {
             throw new \RuntimeException('Classement requis pour un stock de produit.');
         }
 
-        return Stock::updateOrCreate(
-            [
-                'location_id' => $locationId,
-                'entite_type' => $entiteType,
-                'entite_id' => $entiteId,
-                'classement_id' => $classementId,
-            ],
-            [
-                'stock_total' => $stockTotal ?? 0,
-            ]
-        );
+        return [
+            'location_id' => $locationId,
+            'entite_type' => $entiteType,
+            'entite_id' => $entiteId,
+            'classement_id' => $classementId,
+            'stock_total' => $stockTotal,
+        ];
     }
 
     private function resolveLocationId(array $row): int
     {
         $rawId = trim((string) ($row['location_id'] ?? ''));
+
         if ($rawId !== '' && is_numeric($rawId)) {
             $locationId = (int) $rawId;
+
             if (Location::whereKey($locationId)->exists()) {
                 return $locationId;
             }
         }
 
         $label = $this->readLabel($row, ['location', 'location_nom', 'location_name']);
+
         if ($label !== null) {
             $location = Location::query()
                 ->where('nom', $label)
@@ -119,6 +160,7 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
     private function resolveEntiteId(array $row, string $entiteType): int
     {
         $rawId = trim((string) ($row['entite_id'] ?? ''));
+
         if ($rawId !== '' && is_numeric($rawId)) {
             $entiteId = (int) $rawId;
 
@@ -132,6 +174,7 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
         }
 
         $label = $this->readLabel($row, ['entite', 'article', 'nom', 'designation', 'nomencla', 'reference']);
+
         if ($label === null) {
             throw new \RuntimeException('Impossible de résoudre l’article à importer.');
         }
@@ -172,29 +215,34 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
         }
 
         $rawId = trim((string) ($row['classement_id'] ?? ''));
+
         if ($rawId !== '' && is_numeric($rawId)) {
             $classementId = (int) $rawId;
+
             if (ClassementProduit::whereKey($classementId)->exists()) {
                 return $classementId;
             }
         }
 
         $label = $this->readLabel($row, ['classement', 'qualite', 'classement_libelle', 'libelle']);
+
         if ($label === null) {
             return null;
         }
 
         $qualite = $this->normalizeQualite($label);
+
         if ($qualite === null) {
             throw new \RuntimeException("Classement '{$label}' invalide pour un stock produit.");
         }
 
         $classement = ClassementProduit::query()
             ->where('qualite', $qualite)
+            ->orWhere('libelle', $label)
             ->first();
 
         if (!$classement) {
-            throw new \RuntimeException("Classement '{$qualite}' introuvable en base.");
+            throw new \RuntimeException("Classement '{$label}' introuvable en base.");
         }
 
         return (int) $classement->id;
@@ -208,6 +256,7 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
             }
 
             $value = trim((string) $row[$key]);
+
             if ($value !== '') {
                 return $value;
             }
@@ -256,12 +305,8 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
         }
 
         $normalized = str_replace(',', '.', (string) $value);
-        return is_numeric($normalized) ? (float) $normalized : null;
-    }
 
-    public function getImportErrors(): array
-    {
-        return $this->importErrors;
+        return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     public function rules(): array
@@ -281,19 +326,7 @@ class StockSheetImport implements ToModel, WithHeadingRow, WithValidation, Skips
     public function onFailure(Failure ...$failures): void
     {
         foreach ($failures as $failure) {
-            $this->importErrors[] = [
-                'ligne' => $failure->row(),
-                'colonne' => $failure->attribute(),
-                'erreurs' => $failure->errors(),
-                'valeurs' => $failure->values(),
-            ];
-
-            Log::warning('Ligne ignorée (import stock)', [
-                'ligne' => $failure->row(),
-                'colonne' => $failure->attribute(),
-                'erreurs' => $failure->errors(),
-                'valeurs' => $failure->values(),
-            ]);
+            $this->parent->addFailure($failure);
         }
     }
 }

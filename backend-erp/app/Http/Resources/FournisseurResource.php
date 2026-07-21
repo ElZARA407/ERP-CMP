@@ -22,6 +22,7 @@ class FournisseurResource extends JsonResource
             'interlocutaire' => $this->interlocutaire,
             'code_compta'    => $this->code_compta,
             'actif'          => $this->actif,
+            'est_divers'     => $this->est_divers,
             'created_at'     => $this->created_at?->toDateString(),
         ];
     }

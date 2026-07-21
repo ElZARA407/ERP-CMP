@@ -104,6 +104,6 @@ class BonProduction extends Model
             ? (int) substr($last, strlen($prefix)) + 1
             : 1;
 
-        return $prefix . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
+        return $prefix . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 }

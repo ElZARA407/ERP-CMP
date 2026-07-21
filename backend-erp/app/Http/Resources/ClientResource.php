@@ -23,6 +23,7 @@ class ClientResource extends JsonResource
             'code_compta'    => $this->code_compta,
             'facturation'    => $this->facturation,
             'actif'          => $this->actif,
+            'est_divers'     => $this->est_divers,
             'created_at'     => $this->created_at?->toDateString(),
         ];
     }
