@@ -8,7 +8,6 @@ enum TypeMouvement: string
     case ENTREE     = 'entree';
     case SORTIE     = 'sortie';
     case RETOUR     = 'retour';
-    case INVENTAIRE = 'inventaire';
 
     public function label(): string
     {
@@ -16,7 +15,6 @@ enum TypeMouvement: string
             self::ENTREE     => 'Entrée',
             self::SORTIE     => 'Sortie',
             self::RETOUR     => 'Retour',
-            self::INVENTAIRE => 'Inventaire',
         };
     }
 

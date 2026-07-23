@@ -22,7 +22,7 @@ return new class extends Migration
                   ->nullable()
                   ->constrained('classement_produits')
                   ->nullOnDelete();
-            $table->enum('type', ['entree', 'sortie', 'retour', 'inventaire']);
+            $table->enum('type', ['entree', 'sortie', 'retour']);
             $table->decimal('quantite', 12, 3);
             $table->string('reference_type', 50);
             $table->unsignedBigInteger('reference_id');

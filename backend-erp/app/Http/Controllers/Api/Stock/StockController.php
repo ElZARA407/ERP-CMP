@@ -160,7 +160,7 @@ class StockController extends BaseApiController
                 entiteType: $validated['entite_type'],
                 entiteId: (int) $validated['entite_id'],
                 stockPhysique: (float) $validated['stock_total'],
-                motif: trim((string) ($validated['motif'] ?? '')) ?: 'inventaire',
+                motif: trim((string) ($validated['motif'] ?? '')) ?: 'INVENTAIRE',
                 operateur: $operateur,
                 classementId: !empty($validated['classement_id']) ? (int) $validated['classement_id'] : null
             );

@@ -38,7 +38,8 @@ class ProductionCostService
         $tempsBrut = round($this->sumDurationsByType($evenements, 'production'), 2);
         $tempsPause = round($this->sumDurationsByType($evenements, 'pause'), 2);
         $tempsPanne = round($this->sumDurationsByType($evenements, 'panne'), 2);
-        $deductions = round($tempsPause + $tempsPanne, 2);
+        $tempsAutre = round($this->sumDurationsByType($evenements, 'autre'), 2);
+        $deductions = round($tempsPause + $tempsPanne + $tempsAutre, 2);
 
         $matiereDetails = [];
         $coutMatieresTotal = 0.0;
@@ -94,10 +95,11 @@ class ProductionCostService
             : 0.0;
 
         return [
-            'temps_brut' => $tempsBrut,
+            'temps_brut' => round(array_sum(array_column($employeDetails, 'heures_brutes')), 2),
             'temps_pause' => $tempsPause,
             'temps_panne' => $tempsPanne,
-            'temps_effectif' => round(max(0, $tempsBrut - $deductions), 2),
+            'temps_autre' => $tempsAutre,
+            'temps_effectif' => round(array_sum(array_column($employeDetails, 'heures_effectives')), 2),
             'quantite_totale_produite' => $quantiteTotaleProduite,
             'cout_matieres_total' => round($coutMatieresTotal, 2),
             'cout_main_oeuvre_total' => round($coutMainOeuvreTotal, 2),
@@ -120,6 +122,7 @@ class ProductionCostService
                 'temps_brut' => $snapshot['temps_brut'],
                 'temps_pause' => $snapshot['temps_pause'],
                 'temps_panne' => $snapshot['temps_panne'],
+                'temps_autre' => $snapshot['temps_autre'],
                 'temps_effectif' => $snapshot['temps_effectif'],
                 'quantite_totale_produite' => $snapshot['quantite_totale_produite'],
                 'cout_matieres_total' => $snapshot['cout_matieres_total'],
@@ -162,9 +165,11 @@ class ProductionCostService
         $details = [];
         $quantiteTotale = 0.0;
         $pondere = 0.0;
+        $tempsEffectifTotal = 0.0;
 
         foreach ($rows as $calcul) {
             $session = $calcul->session;
+
             if (!$session) {
                 continue;
             }
@@ -178,27 +183,44 @@ class ProductionCostService
             }
 
             $coutUnitaire = (float) $calcul->cout_unitaire;
+
             $quantiteTotale += $quantiteSessionProduit;
             $pondere += $quantiteSessionProduit * $coutUnitaire;
+            $tempsEffectifTotal += (float) $calcul->temps_effectif;
+            $prod_session = round($quantiteSessionProduit/$calcul->temps_effectif,2);
 
             $details[] = [
                 'bp_session_id' => $session->id,
                 'bp_session_numero' => $session->session_numero,
                 'date_session' => $session->date_session?->toDateString(),
+                'production_session' =>$prod_session,
                 'quantite' => round($quantiteSessionProduit, 3),
-                'cout_unitaire' => round($coutUnitaire, 4),
-                'cout_pondere' => round($quantiteSessionProduit * $coutUnitaire, 4),
+                'cout_unitaire' => round($coutUnitaire, 2),
+                'cout_pondere' => round($quantiteSessionProduit * $coutUnitaire, 2),
+                'temps_effectif' => round((float) $calcul->temps_effectif, 2),
             ];
         }
 
         return [
             'sessions_count' => count($details),
             'quantite_totale' => round($quantiteTotale, 3),
-            'cout_moyen_pondere' => $quantiteTotale > 0 ? round($pondere / $quantiteTotale, 4) : 0.0,
+            'temps_effectif_total' => round($tempsEffectifTotal, 2),
+
+            'production_moyenne_session' => count($details) > 0
+                ? round($quantiteTotale / count($details), 2)
+                : 0.0,
+
+            'production_moyenne_heure' => $tempsEffectifTotal > 0
+                ? round($quantiteTotale / $tempsEffectifTotal, 2)
+                : 0.0,
+
+            'cout_moyen_pondere' => $quantiteTotale > 0
+                ? round($pondere / $quantiteTotale, 2)
+                : 0.0,
+
             'details' => $details,
         ];
     }
-
     public function calculateWeightedAverageForBp(BonProduction $bp): array
     {
         $bp->loadMissing('sessions.calcul', 'sessions.obtenus', 'produit');
@@ -212,29 +234,37 @@ class ProductionCostService
         $details = [];
         $quantiteTotale = 0.0;
         $pondere = 0.0;
+        $tempsEffectifTotal = 0.0;
 
         foreach ($sessions as $session) {
             $calcul = $session->calcul;
+
             if (!$calcul) {
                 continue;
             }
 
             $quantiteSession = (float) $session->obtenus->sum('quantite_produite');
+
             if ($quantiteSession <= 0) {
                 continue;
             }
 
             $coutUnitaire = (float) $calcul->cout_unitaire;
+
             $quantiteTotale += $quantiteSession;
             $pondere += $quantiteSession * $coutUnitaire;
+            $tempsEffectifTotal += (float) $calcul->temps_effectif;
+            $prod_session = round($quantiteSession/$calcul->temps_effectif,2);
 
             $details[] = [
                 'bp_session_id' => $session->id,
                 'bp_session_numero' => $session->session_numero,
                 'date_session' => $session->date_session?->toDateString(),
                 'quantite' => round($quantiteSession, 3),
-                'cout_unitaire' => round($coutUnitaire, 4),
-                'cout_pondere' => round($quantiteSession * $coutUnitaire, 4),
+                'production_session' =>$prod_session,
+                'cout_unitaire' => round($coutUnitaire, 2),
+                'cout_pondere' => round($quantiteSession * $coutUnitaire, 2),
+                'temps_effectif' => round((float) $calcul->temps_effectif, 2),
             ];
         }
 
@@ -243,9 +273,23 @@ class ProductionCostService
                 'id' => $bp->id,
                 'numero' => $bp->numero,
             ],
+
             'sessions_count' => count($details),
             'quantite_totale' => round($quantiteTotale, 3),
-            'cout_moyen_pondere' => $quantiteTotale > 0 ? round($pondere / $quantiteTotale, 4) : 0.0,
+            'temps_effectif_total' => round($tempsEffectifTotal, 2),
+
+            'production_moyenne_session' => count($details) > 0
+                ? round($quantiteTotale / count($details), 2)
+                : 0.0,
+
+            'production_moyenne_heure' => $tempsEffectifTotal > 0
+                ? round($quantiteTotale / $tempsEffectifTotal, 2)
+                : 0.0,
+
+            'cout_moyen_pondere' => $quantiteTotale > 0
+                ? round($pondere / $quantiteTotale, 2)
+                : 0.0,
+
             'details' => $details,
         ];
     }

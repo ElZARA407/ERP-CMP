@@ -31,6 +31,7 @@ class BpSessionResource extends JsonResource
                 'temps_brut' => (float) $this->calcul->temps_brut,
                 'temps_pause' => (float) $this->calcul->temps_pause,
                 'temps_panne' => (float) $this->calcul->temps_panne,
+                'production_moyenne_heure'=>(float) round($this->calcul->quantite_totale_produite/$this->calcul->temps_effectif,2),
                 'temps_effectif' => (float) $this->calcul->temps_effectif,
                 'quantite_totale_produite' => (float) $this->calcul->quantite_totale_produite,
                 'cout_matieres_total' => (float) $this->calcul->cout_matieres_total,
@@ -44,4 +45,5 @@ class BpSessionResource extends JsonResource
             'created_at' => $this->created_at?->toDateTimeString(),
         ];
     }
+    
 }

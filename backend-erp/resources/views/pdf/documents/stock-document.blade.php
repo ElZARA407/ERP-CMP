@@ -57,7 +57,7 @@
 
         .top {
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 7px;
         }
 
         .brand {
@@ -83,18 +83,17 @@
 
         .brand-small {
             font-size: 4.7pt;
-            line-height: 1.18;
+            line-height: 1.15;
         }
 
         .doc-head {
             width: 42%;
             text-align: center;
             vertical-align: top;
-            padding-top: 1px;
         }
 
         .doc-title {
-            font-size: 6.6pt;
+            font-size: 7pt;
             font-weight: 700;
             text-transform: uppercase;
             margin-bottom: 3px;
@@ -104,24 +103,24 @@
             width: 84px;
             margin: 0 auto;
             background: #f2f2f2;
-            padding: 1px 0;
-            font-size: 4.8pt;
-            font-weight: 700;
+            padding: 2px 0;
+            font-size: 5pt;
+            font-weight: bold;
             text-transform: uppercase;
         }
 
         .ref-box {
             width: 84px;
-            height: 17px;
+            height: 18px;
             margin: 0 auto;
             background: #f2f2f2;
             font-size: 8.5pt;
-            font-weight: 700;
-            line-height: 17px;
+            font-weight: bold;
+            line-height: 18px;
         }
 
         .meta-table {
-            margin-top: 8px;
+            margin-top: 7px;
         }
 
         .meta-table td {
@@ -137,7 +136,7 @@
         .meta-box {
             height: 17px;
             border: 2px solid #000;
-            font-size: 5.8pt;
+            font-size: 5.7pt;
             font-weight: 600;
         }
 
@@ -152,6 +151,8 @@
             padding-right: 4px !important;
         }
 
+        /* ================= TABLEAU ================= */
+
         .lines {
             margin-top: 5px;
             table-layout: fixed;
@@ -160,16 +161,16 @@
         .lines th,
         .lines td {
             border: 1.2px solid #000;
-            padding: 1px 2px;
             vertical-align: middle;
         }
 
         .lines th {
             background: #eeeeee;
-            font-size: 4.75pt;
-            font-weight: 700;
+            font-size: 5.2pt;
+            font-weight: bold;
             text-align: center;
-            line-height: 1.1;
+            line-height: 1.15;
+            padding: 2px;
         }
 
         .lines .num-col {
@@ -178,8 +179,9 @@
         }
 
         .lines td {
-            height: 14px;
+            height: 15px;
             font-size: 5.2pt;
+            padding: 1px 2px;
         }
 
         .center {
@@ -190,11 +192,13 @@
             text-align: right;
         }
 
+        /* =========================================== */
+
         .bottom-fixed {
             position: absolute;
             left: 5mm;
             right: 5mm;
-            bottom: 5mm;
+            bottom: 3mm;
         }
 
         .signature-main {
@@ -203,14 +207,14 @@
 
         .signature-main td {
             border: 1.2px solid #000;
-            height: 31px;
+            height: 30px;
             vertical-align: top;
             padding: 2px 3px;
             font-size: 4.9pt;
         }
 
         .signature-label {
-            font-weight: 700;
+            font-weight: bold;
         }
 
         .received {
@@ -226,27 +230,27 @@
         .received-title {
             height: 14px;
             text-align: center;
-            font-size: 4.9pt;
-            font-weight: 700;
+            font-size: 4.8pt;
+            font-weight: bold;
             padding-top: 2px;
         }
 
         .received-subtitle {
             text-align: center;
-            font-size: 4.8pt;
+            font-size: 4.7pt;
             padding-bottom: 2px;
         }
 
         .received-box {
-            height: 40px;
+            height: 38px;
             padding: 3px;
-            font-size: 4.9pt;
+            font-size: 4.8pt;
         }
 
         .footer {
             margin-top: 2px;
             margin-left: 5mm;
-            font-size: 4.1pt;
+            font-size: 4pt;
             line-height: 1.2;
         }
     </style>
@@ -362,9 +366,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($lines as $index => $line)
+                            @php
+                                $maxRows = 15;
+                            @endphp
+
+                            @for ($i = 0; $i < $maxRows; $i++)
+                                @php
+                                    $line = $lines[$i] ?? null;
+                                @endphp
+
                                 <tr>
-                                    <td class="center num-col">{{ $index + 1 }}</td>
+                                    <td class="center num-col">{{ $i + 1 }}</td>
                                     <td>{{ $line['reference'] ?? '' }}</td>
                                     <td>{{ $line['designation'] ?? '' }}</td>
                                     <td class="center">{{ $line['colisage_type'] ?? $line['colisage'] ?? '' }}</td>
@@ -373,18 +385,7 @@
                                     <td class="center">{{ $line['quantite'] ?? '' }}</td>
                                     <td class="center">{{ $line['validation'] ?? '' }}</td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td class="center num-col">1</td>
-                                    <td></td>
-                                    <td></td>
-                                    <td class="center"></td>
-                                    <td class="center"></td>
-                                    <td class="center"></td>
-                                    <td class="center"></td>
-                                    <td class="center"></td>
-                                </tr>
-                            @endforelse
+                            @endfor
                         </tbody>
                     </table>
 

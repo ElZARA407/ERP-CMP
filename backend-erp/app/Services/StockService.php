@@ -172,11 +172,15 @@ class StockService
                 $classementId
             );
 
+            // Un seul mouvement : ENTREE si le stock augmente, SORTIE s'il diminue
+            // Le motif + reference_type + ecart portent toute l'information comptable
+            $type = ($ecart >= 0) ? TypeMouvement::ENTREE : TypeMouvement::SORTIE;
+
             return $this->enregistrerMouvement(
                 locationId: $locationId,
                 entiteType: $entiteType,
                 entiteId: $entiteId,
-                type: TypeMouvement::INVENTAIRE,
+                type: $type,
                 quantite: abs($ecart),
                 referenceType: 'ajustement_inventaire',
                 referenceId: $stock->id,
@@ -252,19 +256,14 @@ class StockService
             'vente_directe' => 'vente directe',
             'bon_sortie' => 'bon de sortie',
 
-            'ajustement_inventaire' => 'inventaire',
-            'inventaire' => 'inventaire',
-
             'livraison_annulee' => 'annulation livraison',
             'vente_directe_annulee' => 'annulation vente directe',
+
+            'ajustement_inventaire' => 'inventaire',
         ];
 
         if (isset($map[$reference])) {
             return $map[$reference];
-        }
-
-        if ($type === TypeMouvement::INVENTAIRE) {
-            return 'inventaire';
         }
 
         return ucfirst(str_replace('_', ' ', $reference));

@@ -134,6 +134,7 @@ Route::prefix('v1')->group(function () {
 
             Route::middleware('role:admin,commercial,responsable_achat')->group(function () {
                 Route::apiResource('fournisseurs', FournisseurController::class);
+                Route::get('fournisseurs/{fournisseur}/historique', [FournisseurController::class, 'historique']);
             });
 
             Route::middleware('role:admin,commercial')->group(function () {
