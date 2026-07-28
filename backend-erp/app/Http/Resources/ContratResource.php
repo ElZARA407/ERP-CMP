@@ -13,7 +13,7 @@ class ContratResource extends JsonResource
             'id' => $this->id,
             'numero' => $this->numero,
             'mois' => $this->mois,
-            'actif' => $this->actif,
+            'actif' => (bool) $this->actif,
             'total_contractuel' => $this->totalContractuel(),
             'taux_execution' => $this->tauxExecution(),
 
@@ -33,8 +33,18 @@ class ContratResource extends JsonResource
                     'quantite_restante' => $ligne->quantiteRestante(),
                     'est_solde' => $ligne->estSolde(),
                     'frequence' => $ligne->frequence,
+                    'frequence_libelle' => method_exists($ligne, 'frequenceLibelle')
+                        ? $ligne->frequenceLibelle()
+                        : $ligne->frequence,
+                    'frequence_jours' => $ligne->frequence_jours,
+                    'date_debut' => $ligne->date_debut?->toDateString(),
+                    'date_fin' => $ligne->date_fin?->toDateString(),
                     'statut' => $ligne->statut,
                     'prix_unitaire' => (float) $ligne->prix_unitaire,
+                    'total_ligne' => round(
+                        (float) $ligne->quantite_contractuelle * (float) $ligne->prix_unitaire,
+                        2
+                    ),
 
                     'produit' => $ligne->produit ? [
                         'id' => $ligne->produit->id,
@@ -44,8 +54,12 @@ class ContratResource extends JsonResource
 
                     'classement' => $ligne->classement ? [
                         'id' => $ligne->classement->id,
-                        'qualite' => $ligne->classement->qualite?->value,
-                        'libelle' => $ligne->classement->libelle,
+                        'qualite' => is_object($ligne->classement->qualite)
+                            ? $ligne->classement->qualite->value
+                            : $ligne->classement->qualite,
+                        'libelle' => method_exists($ligne->classement, 'label')
+                            ? $ligne->classement->label()
+                            : ($ligne->classement->libelle ?? null),
                         'designation' => method_exists($ligne->classement, 'label')
                             ? $ligne->classement->label()
                             : ($ligne->classement->libelle ?? null),
@@ -53,7 +67,7 @@ class ContratResource extends JsonResource
                 ])
             ),
 
-            'created_at' => $this->created_at?->toDateString(),
+            'created_at' => $this->created_at?->toDateTimeString(),
         ];
     }
 }

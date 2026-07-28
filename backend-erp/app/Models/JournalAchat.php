@@ -61,8 +61,10 @@ class JournalAchat extends Model
     // ── Méthodes métier ────────────────────────────────────
     public function estValidable(): bool
     {
-        return $this->statut === 'brouillon'
-            && $this->lignes()->count() > 0;
+        $statut = strtolower(trim((string) $this->statut));
+
+        return $statut === 'brouillon'
+            && $this->lignes()->exists();
     }
 
     public function calculerTotal(): float

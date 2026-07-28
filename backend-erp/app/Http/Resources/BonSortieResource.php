@@ -14,6 +14,10 @@ class BonSortieResource extends JsonResource
             'numero' => $this->numero,
             'date' => $this->date?->toDateString(),
             'motif' => $this->motif,
+            'motif_libelle' => method_exists($this->resource, 'motifLibelle')
+                ? $this->motifLibelle()
+                : $this->motif,
+            'motif_detail' => $this->motif_detail,
             'statut' => $this->statut,
             'observations' => $this->observations,
 
@@ -22,10 +26,32 @@ class BonSortieResource extends JsonResource
                 'nom' => $this->location->nom,
             ]),
 
+            'destination_location' => $this->whenLoaded('destinationLocation', fn () =>
+                $this->destinationLocation ? [
+                    'id' => $this->destinationLocation->id,
+                    'nom' => $this->destinationLocation->nom,
+                ] : null
+            ),
+
             'client' => $this->whenLoaded('client', fn () =>
                 $this->client ? [
                     'id' => $this->client->id,
                     'nom' => $this->client->nom,
+                    'reference' => $this->client->reference,
+                ] : null
+            ),
+
+            'createur' => $this->whenLoaded('createur', fn () =>
+                $this->createur ? [
+                    'id' => $this->createur->id,
+                    'nom' => $this->createur->nom,
+                ] : null
+            ),
+
+            'valideur' => $this->whenLoaded('valideur', fn () =>
+                $this->valideur ? [
+                    'id' => $this->valideur->id,
+                    'nom' => $this->valideur->nom,
                 ] : null
             ),
 
@@ -44,13 +70,15 @@ class BonSortieResource extends JsonResource
 
                     'classement' => $ligne->classement ? [
                         'id' => $ligne->classement->id,
-                        'qualite' => $ligne->classement->qualite?->value,
+                        'qualite' => is_object($ligne->classement->qualite)
+                            ? $ligne->classement->qualite->value
+                            : $ligne->classement->qualite,
                         'libelle' => $ligne->classement->libelle,
                         'designation' => method_exists($ligne->classement, 'label')
                             ? $ligne->classement->label()
                             : ($ligne->classement->libelle ?? null),
                     ] : null,
-                ])
+                ])->values()
             ),
 
             'created_at' => $this->created_at?->toDateTimeString(),

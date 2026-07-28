@@ -167,8 +167,10 @@ Route::prefix('v1')->group(function () {
                 Route::post('demandes/{demande}/rejeter', [DemandeAchatController::class, 'rejeter']);
                 Route::get('bons-reception/{br}/pdf', [PdfExportController::class, 'journalAchat']);
 
-                Route::apiResource('bons-reception', JournalAchatController::class);
-                Route::post('bons-reception/{br}/valider', [JournalAchatController::class, 'valider']);
+                Route::apiResource('bons-reception', JournalAchatController::class)
+                    ->parameters(['bons-reception' => 'bonsReception']);
+
+                Route::post('bons-reception/{bonsReception}/valider', [JournalAchatController::class, 'valider']);
                 Route::apiResource('bons-reception.lignes', \App\Http\Controllers\Api\Achat\LigneAchatController::class)
                     ->shallow();
             });
@@ -219,8 +221,9 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('livraisons.lignes', \App\Http\Controllers\Api\Logistique\LigneLivraisonController::class)
                     ->shallow();
 
-                Route::apiResource('bons-sortie', BonSortieController::class);
-                Route::post('bons-sortie/{bon}/valider', [BonSortieController::class, 'valider']);
+                Route::apiResource('bons-sortie', BonSortieController::class)
+                    ->parameters(['bons-sortie' => 'bonsSortie']);
+                Route::post('bons-sortie/{bonsSortie}/valider', [BonSortieController::class, 'valider']);
                 Route::apiResource('bons-sortie.lignes', \App\Http\Controllers\Api\Logistique\LigneSortieController::class)
                     ->shallow();
             });

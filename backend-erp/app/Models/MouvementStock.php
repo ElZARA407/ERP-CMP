@@ -3,8 +3,9 @@
 
 namespace App\Models;
 
-use App\Enums\TypeMouvement;
 use App\Enums\TypeEntite;
+use App\Enums\TypeMouvement;
+use App\Traits\HasAuditFields;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -14,14 +15,25 @@ use LogicException;
 
 #[Table('mouvements_stock')]
 #[Fillable(
-    'location_id', 'entite_type', 'entite_id',
-    'classement_id', 'type', 'quantite',
-    'reference_type', 'reference_id',
-    'utilisateur_id', 'date_mouvement',
-    'motif', 'stock_theorique', 'stock_physique', 'ecart'
+    'location_id',
+    'entite_type',
+    'entite_id',
+    'classement_id',
+    'type',
+    'quantite',
+    'reference_type',
+    'reference_id',
+    'utilisateur_id',
+    'date_mouvement',
+    'motif',
+    'stock_theorique',
+    'stock_physique',
+    'ecart'
 )]
 class MouvementStock extends Model
 {
+    use HasAuditFields;
+
     public const UPDATED_AT = null;
 
     protected function casts(): array
@@ -103,8 +115,8 @@ class MouvementStock extends Model
 
     public function impactStock(): float
     {
-        if ($this->type === TypeMouvement::INVENTAIRE) {
-            return (float) ($this->ecart ?? $this->quantite);
+        if ($this->reference_type === 'ajustement_inventaire' && $this->ecart !== null) {
+            return (float) $this->ecart;
         }
 
         return $this->type->estEntree()

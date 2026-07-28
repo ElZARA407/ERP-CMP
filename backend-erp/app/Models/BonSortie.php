@@ -1,12 +1,11 @@
 <?php
-// app/Models/BonSortie.php
 
 namespace App\Models;
 
-use App\Traits\HasReference;
 use App\Traits\HasAuditFields;
-use Illuminate\Database\Eloquent\Attributes\Table;
+use App\Traits\HasReference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,15 +13,44 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Table('bon_sorties')]
 #[Fillable(
-    'numero', 'location_id', 'date', 'motif',
-    'client_id', 'statut', 'observations',
-    'created_by', 'valide_by'
+    'numero',
+    'location_id',
+    'destination_location_id',
+    'date',
+    'motif',
+    'motif_detail',
+    'client_id',
+    'statut',
+    'observations',
+    'created_by',
+    'valide_by'
 )]
 class BonSortie extends Model
 {
     use HasFactory, HasReference, HasAuditFields;
 
-    // ── Casts ──────────────────────────────────────────────
+    public const MOTIF_TRANSFERT = 'transfert';
+    public const MOTIF_ECHANTILLON = 'echantillon';
+    public const MOTIF_PERTE = 'perte';
+    public const MOTIF_CASSE = 'casse';
+    public const MOTIF_CONSOMMATION_INTERNE = 'consommation_interne';
+    public const MOTIF_DON = 'don';
+    public const MOTIF_DESTRUCTION = 'destruction';
+    public const MOTIF_AUTRE = 'autre';
+    public const MOTIF_USAGE_INTERNE = 'usage_interne';
+
+    public const MOTIFS = [
+        self::MOTIF_TRANSFERT,
+        self::MOTIF_ECHANTILLON,
+        self::MOTIF_PERTE,
+        self::MOTIF_CASSE,
+        self::MOTIF_CONSOMMATION_INTERNE,
+        self::MOTIF_DON,
+        self::MOTIF_DESTRUCTION,
+        self::MOTIF_AUTRE,
+        self::MOTIF_USAGE_INTERNE,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -30,10 +58,14 @@ class BonSortie extends Model
         ];
     }
 
-    // ── Relations ──────────────────────────────────────────
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function destinationLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'destination_location_id');
     }
 
     public function client(): BelongsTo
@@ -46,10 +78,37 @@ class BonSortie extends Model
         return $this->hasMany(LigneSortie::class);
     }
 
-    // ── Méthodes métier ────────────────────────────────────
+    public function createur(): BelongsTo
+    {
+        return $this->belongsTo(Utilisateur::class, 'created_by');
+    }
+
+    public function valideur(): BelongsTo
+    {
+        return $this->belongsTo(Utilisateur::class, 'valide_by');
+    }
+
     public function estValidable(): bool
     {
-        return $this->statut === 'brouillon'
-            && $this->lignes()->count() > 0;
+        $statut = strtolower(trim((string) $this->statut));
+
+        return $statut === 'brouillon'
+            && $this->lignes()->exists();
+    }
+
+    public function motifLibelle(): string
+    {
+        return match ($this->motif) {
+            self::MOTIF_TRANSFERT => 'Transfert',
+            self::MOTIF_ECHANTILLON => 'Échantillon',
+            self::MOTIF_PERTE => 'Perte',
+            self::MOTIF_CASSE => 'Casse',
+            self::MOTIF_CONSOMMATION_INTERNE => 'Consommation interne',
+            self::MOTIF_DON => 'Don',
+            self::MOTIF_DESTRUCTION => 'Destruction',
+            self::MOTIF_AUTRE => 'Autre',
+            self::MOTIF_USAGE_INTERNE => 'Usage interne',
+            default => ucfirst((string) $this->motif),
+        };
     }
 }
