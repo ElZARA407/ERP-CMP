@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\Logistique\BonSortieController;
 use App\Http\Controllers\Api\Finance\FactureController;
 use App\Http\Controllers\Api\Kpi\DashboardController;
 use App\Http\Controllers\Api\Documents\PdfExportController;
+use App\Http\Controllers\Api\Reports\ReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -67,7 +68,16 @@ Route::prefix('v1')->group(function () {
             Route::get('stock', [DashboardController::class, 'stock']);
             Route::get('commercial', [DashboardController::class, 'commercial']);
             Route::get('finance', [DashboardController::class, 'finance']);
+            Route::get('pilotage', [DashboardController::class, 'pilotage']);
         });
+
+        // ── États & Rapports ─────────────────────────────────
+        Route::prefix('rapports')
+            ->middleware('role:admin,commercial,finance,logistique,responsable_achat,responsable_prod')
+            ->group(function () {
+                Route::get('/', [ReportController::class, 'overview']);
+                Route::get('export', [ReportController::class, 'export']);
+            });
 
         // ── Organisation ──────────────────────────────────
         Route::prefix('organisation')
