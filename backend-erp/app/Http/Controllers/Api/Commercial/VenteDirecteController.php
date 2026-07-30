@@ -9,11 +9,13 @@ use App\Services\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\ReportVisibilityService;
 
 class VenteDirecteController extends BaseApiController
 {
     public function __construct(
-        private readonly StockService $stockService
+        private readonly StockService $stockService,
+        private readonly ReportVisibilityService $visibility
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -26,6 +28,8 @@ class VenteDirecteController extends BaseApiController
             'lignes.classement',
             'lignes.lignesLivraison',
         ]);
+
+        $this->visibility->restrictCommercialEloquent($query, 'ventes_directes', $request->user());
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -118,6 +122,9 @@ class VenteDirecteController extends BaseApiController
 
     public function show(int|string $venteDirecte): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, request()->user())) {
+            return $this->forbidden('Vous ne pouvez pas consulter cette vente directe.');
+        }
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',
@@ -133,6 +140,9 @@ class VenteDirecteController extends BaseApiController
 
     public function update(Request $request, int|string $venteDirecte): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette vente directe.');
+        }
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',
@@ -182,6 +192,9 @@ class VenteDirecteController extends BaseApiController
 
     public function valider(Request $request, int|string $venteDirecte): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette vente directe.');
+        }
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',
@@ -246,6 +259,9 @@ class VenteDirecteController extends BaseApiController
 
     public function annuler(Request $request, int|string $venteDirecte): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette vente directe.');
+        }
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',

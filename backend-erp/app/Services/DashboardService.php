@@ -11,9 +11,17 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
+    public function __construct(
+        private readonly ReportVisibilityService $visibility
+    ) {}
+
     public function overview(): array
     {
-        return Cache::remember('dashboard.overview.v2', now()->addSeconds(60), function () {
+        $user = auth()->user();
+        $role = $user?->role?->nom ?? 'guest';
+        $cacheKey = 'dashboard.overview.v4.' . $role . '.' . ($user?->id ?? 0);
+
+        return Cache::remember($cacheKey, now()->addSeconds(60), function () {
             return [
                 'kpi' => $this->kpi(),
                 'charts' => [
@@ -88,9 +96,12 @@ class DashboardService
 
     private function kpi(): array
     {
+        $user = auth()->user();
+
         return [
-            'commandes_en_attente' => DB::table('commandes')
-                ->whereIn('statut', ['non_livree', 'partielle'])
+            'commandes_en_attente' => $this->visibility
+                ->restrictCommercialTable(DB::table('commandes'), 'commandes', $user)
+                ->whereIn('commandes.statut', ['non_livree', 'partielle'])
                 ->count(),
 
             'bons_production_en_cours' => DB::table('bon_productions')
@@ -107,12 +118,14 @@ class DashboardService
                 ])
                 ->count(),
 
-            'livraisons_du_jour' => DB::table('livraisons')
-                ->whereDate('date_livraison', today())
+            'livraisons_du_jour' => $this->visibility
+                ->restrictLivraisonsFromCommercialScope(DB::table('livraisons'), $user)
+                ->whereDate('livraisons.date_livraison', today())
                 ->count(),
 
-            'factures_en_attente' => DB::table('factures')
-                ->whereIn('statut', [
+            'factures_en_attente' => $this->visibility
+                ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+                ->whereIn('factures.statut', [
                     StatutFacture::EN_ATTENTE->value,
                     StatutFacture::EMISE->value,
                     StatutFacture::PARTIELLEMENT_PAYEE->value,
@@ -133,14 +146,16 @@ class DashboardService
 
     private function ventes30Jours(): array
     {
+        $user = auth()->user();
         $start = today()->subDays(29);
         $end = today();
 
-        $rows = DB::table('factures')
-            ->selectRaw('DATE(date) as jour, SUM(total) as total')
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->where('statut', '<>', StatutFacture::ANNULEE->value)
-            ->groupByRaw('DATE(date)')
+        $rows = $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->selectRaw('DATE(factures.date) as jour, SUM(factures.total) as total')
+            ->whereBetween('factures.date', [$start->toDateString(), $end->toDateString()])
+            ->where('factures.statut', '<>', StatutFacture::ANNULEE->value)
+            ->groupByRaw('DATE(factures.date)')
             ->orderBy('jour')
             ->get()
             ->keyBy('jour');
@@ -210,9 +225,14 @@ class DashboardService
 
     private function topProduits(): array
     {
-        return DB::table('ligne_factures')
+        $user = auth()->user();
+
+        return $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->join('ligne_factures', 'factures.id', '=', 'ligne_factures.facture_id')
             ->join('produits', 'ligne_factures.produit_id', '=', 'produits.id')
             ->selectRaw('produits.id, produits.nomencla, produits.designation, SUM(ligne_factures.quantite) as quantite, SUM(ligne_factures.total_ligne) as total')
+            ->where('factures.statut', '<>', StatutFacture::ANNULEE->value)
             ->groupBy('produits.id', 'produits.nomencla', 'produits.designation')
             ->orderByDesc('total')
             ->limit(5)
@@ -229,7 +249,10 @@ class DashboardService
 
     private function topClients(): array
     {
-        return DB::table('factures')
+        $user = auth()->user();
+
+        return $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
             ->join('clients', 'factures.client_id', '=', 'clients.id')
             ->selectRaw('clients.id, clients.nom, clients.reference, SUM(factures.total) as total')
             ->where('factures.statut', '<>', StatutFacture::ANNULEE->value)
@@ -248,6 +271,7 @@ class DashboardService
 
     private function alertes(): array
     {
+        $user = auth()->user();
         $alertes = [];
 
         foreach ($this->produitsSousMinimumRows(5) as $row) {
@@ -274,7 +298,8 @@ class DashboardService
             ];
         }
 
-        $commandes = DB::table('commandes')
+        $commandes = $this->visibility
+            ->restrictCommercialTable(DB::table('commandes'), 'commandes', $user)
             ->join('clients', 'commandes.client_id', '=', 'clients.id')
             ->select('commandes.id', 'commandes.numero', 'commandes.date_livraison_prevue', 'clients.nom as client')
             ->whereIn('commandes.statut', ['non_livree', 'partielle'])
@@ -295,7 +320,8 @@ class DashboardService
             ];
         }
 
-        $factures = DB::table('factures')
+        $factures = $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
             ->join('clients', 'factures.client_id', '=', 'clients.id')
             ->select('factures.id', 'factures.numero', 'factures.echeance_paiement', 'factures.total', 'factures.montant_paye', 'clients.nom as client')
             ->whereIn('factures.statut', [
@@ -374,10 +400,8 @@ class DashboardService
                         (
                             SELECT bsc.cout_unitaire
                             FROM bp_obtenues bo
-                            INNER JOIN bp_sessions bs
-                                ON bs.id = bo.bp_session_id
-                            INNER JOIN bp_session_calculs bsc
-                                ON bsc.bp_session_id = bs.id
+                            INNER JOIN bp_sessions bs ON bs.id = bo.bp_session_id
+                            INNER JOIN bp_session_calculs bsc ON bsc.bp_session_id = bs.id
                             WHERE bo.produit_id = stocks.entite_id
                             AND bo.classement_id = stocks.classement_id
                             AND bs.statut = 'validee'
@@ -460,51 +484,66 @@ class DashboardService
 
     private function commandesEnRetard(): int
     {
-        return DB::table('commandes')
-            ->whereIn('statut', ['non_livree', 'partielle'])
-            ->whereDate('date_livraison_prevue', '<', today())
+        $user = auth()->user();
+
+        return $this->visibility
+            ->restrictCommercialTable(DB::table('commandes'), 'commandes', $user)
+            ->whereIn('commandes.statut', ['non_livree', 'partielle'])
+            ->whereDate('commandes.date_livraison_prevue', '<', today())
             ->count();
     }
 
     private function caMois(): float
     {
-        return (float) DB::table('factures')
-            ->where('statut', StatutFacture::PAYEE->value)
-            ->whereBetween('date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
-            ->sum('total');
+        $user = auth()->user();
+
+        return (float) $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->where('factures.statut', StatutFacture::PAYEE->value)
+            ->whereBetween('factures.date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+            ->sum('factures.total');
     }
 
     private function montantImpaye(): float
     {
-        return (float) DB::table('factures')
-            ->whereIn('statut', [
+        $user = auth()->user();
+
+        return (float) $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->whereIn('factures.statut', [
                 StatutFacture::EMISE->value,
                 StatutFacture::PARTIELLEMENT_PAYEE->value,
             ])
-            ->selectRaw('SUM(total - montant_paye) as reste')
+            ->selectRaw('SUM(factures.total - factures.montant_paye) as reste')
             ->value('reste') ?? 0;
     }
 
     private function facturesEnRetard(): int
     {
-        return DB::table('factures')
-            ->whereIn('statut', [
+        $user = auth()->user();
+
+        return $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->whereIn('factures.statut', [
                 StatutFacture::EMISE->value,
                 StatutFacture::PARTIELLEMENT_PAYEE->value,
             ])
-            ->whereDate('echeance_paiement', '<', today())
+            ->whereDate('factures.echeance_paiement', '<', today())
             ->count();
     }
 
     private function montantRetard(): float
     {
-        return (float) DB::table('factures')
-            ->whereIn('statut', [
+        $user = auth()->user();
+
+        return (float) $this->visibility
+            ->restrictFacturesFromCommercialScope(DB::table('factures'), $user)
+            ->whereIn('factures.statut', [
                 StatutFacture::EMISE->value,
                 StatutFacture::PARTIELLEMENT_PAYEE->value,
             ])
-            ->whereDate('echeance_paiement', '<', today())
-            ->selectRaw('SUM(total - montant_paye) as reste')
+            ->whereDate('factures.echeance_paiement', '<', today())
+            ->selectRaw('SUM(factures.total - factures.montant_paye) as reste')
             ->value('reste') ?? 0;
     }
 }

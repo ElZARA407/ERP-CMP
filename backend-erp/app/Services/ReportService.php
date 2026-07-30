@@ -5,10 +5,15 @@ namespace App\Services;
 use App\Enums\StatutFacture;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Models\Utilisateur;
 
 class ReportService
 {
-    public function overview(?string $dateDebut = null, ?string $dateFin = null, array $mouvementFilters = []): array
+    public function __construct(
+        private readonly ReportVisibilityService $visibility
+    ) {}
+    
+    public function overview(?string $dateDebut = null, ?string $dateFin = null, array $mouvementFilters = [], ?Utilisateur $user = null): array
     {
         $range = $this->resolveRange($dateDebut, $dateFin);
 
@@ -17,7 +22,7 @@ class ReportService
                 'date_debut' => $range['start']->toDateString(),
                 'date_fin' => $range['end']->toDateString(),
             ],
-            'commercial' => $this->commercial($range),
+            'commercial' => $this->commercial($range, $user),
             'stock' => $this->stock($range),
             'production' => $this->production($range),
             'recyclage' => $this->recyclage($range),
@@ -208,14 +213,32 @@ class ReportService
         };
     }
 
-    public function commercial(array $range): array
+    public function commercial(array $range, ?Utilisateur $user = null): array
     {
+        $facturesBase = fn () => $this->visibility
+            ->restrictFacturesFromCommercialScope(
+                DB::table('factures'),
+                $user
+            )
+            ->whereBetween('factures.date', [$range['start']->toDateString(), $range['end']->toDateString()])
+            ->where('factures.statut', '<>', StatutFacture::ANNULEE->value);
+
+        $commandesBase = fn () => $this->visibility
+            ->restrictCommercialTable(DB::table('commandes'), 'commandes', $user)
+            ->whereBetween('commandes.date', [$range['start']->toDateString(), $range['end']->toDateString()]);
+
+        $ventesDirectesBase = fn () => $this->visibility
+            ->restrictCommercialTable(DB::table('ventes_directes'), 'ventes_directes', $user)
+            ->whereBetween('ventes_directes.date', [$range['start']->toDateString(), $range['end']->toDateString()]);
+
+        $livraisonsBase = fn () => $this->visibility
+            ->restrictLivraisonsFromCommercialScope(DB::table('livraisons'), $user)
+            ->whereBetween('livraisons.date_livraison', [$range['start']->toDateString(), $range['end']->toDateString()]);
+
         return [
-            'ventes_par_periode' => DB::table('factures')
-                ->selectRaw('DATE(date) as date, SUM(total) as total')
-                ->whereBetween('date', [$range['start']->toDateString(), $range['end']->toDateString()])
-                ->where('statut', '<>', StatutFacture::ANNULEE->value)
-                ->groupByRaw('DATE(date)')
+            'ventes_par_periode' => $facturesBase()
+                ->selectRaw('DATE(factures.date) as date, SUM(factures.total) as total')
+                ->groupByRaw('DATE(factures.date)')
                 ->orderBy('date')
                 ->get()
                 ->map(fn ($row) => [
@@ -224,12 +247,10 @@ class ReportService
                 ])
                 ->all(),
 
-            'ventes_par_produit' => DB::table('ligne_factures')
+            'ventes_par_produit' => $facturesBase()
+                ->join('ligne_factures', 'factures.id', '=', 'ligne_factures.facture_id')
                 ->join('produits', 'ligne_factures.produit_id', '=', 'produits.id')
-                ->join('factures', 'ligne_factures.facture_id', '=', 'factures.id')
                 ->selectRaw('produits.id, produits.nomencla, produits.designation, SUM(ligne_factures.quantite) as quantite, SUM(ligne_factures.total_ligne) as total')
-                ->whereBetween('factures.date', [$range['start']->toDateString(), $range['end']->toDateString()])
-                ->where('factures.statut', '<>', StatutFacture::ANNULEE->value)
                 ->groupBy('produits.id', 'produits.nomencla', 'produits.designation')
                 ->orderByDesc('total')
                 ->limit(20)
@@ -243,11 +264,9 @@ class ReportService
                 ])
                 ->all(),
 
-            'ventes_par_client' => DB::table('factures')
+            'ventes_par_client' => $facturesBase()
                 ->join('clients', 'factures.client_id', '=', 'clients.id')
                 ->selectRaw('clients.id, clients.reference, clients.nom, SUM(factures.total) as total')
-                ->whereBetween('factures.date', [$range['start']->toDateString(), $range['end']->toDateString()])
-                ->where('factures.statut', '<>', StatutFacture::ANNULEE->value)
                 ->groupBy('clients.id', 'clients.reference', 'clients.nom')
                 ->orderByDesc('total')
                 ->limit(20)
@@ -260,7 +279,117 @@ class ReportService
                 ])
                 ->all(),
 
-            'commandes_non_livrees' => DB::table('commandes')
+            'commandes_detaillees' => $commandesBase()
+                ->join('clients', 'commandes.client_id', '=', 'clients.id')
+                ->leftJoin('ligne_commandes', 'commandes.id', '=', 'ligne_commandes.commande_id')
+                ->leftJoin('lignes_livraison', 'ligne_commandes.id', '=', 'lignes_livraison.ligne_commande_id')
+                ->selectRaw("
+                    commandes.id,
+                    commandes.numero,
+                    commandes.date,
+                    commandes.date_livraison_prevue,
+                    commandes.statut,
+                    clients.nom as client,
+                    COALESCE(SUM(ligne_commandes.quantite), 0) as quantite_commandee,
+                    COALESCE(SUM(lignes_livraison.quantite_livree), 0) as quantite_livree,
+                    COALESCE(SUM(ligne_commandes.quantite_restante), 0) as quantite_restante,
+                    COALESCE(SUM(ligne_commandes.quantite * ligne_commandes.prix_unitaire), 0) as total
+                ")
+                ->groupBy('commandes.id', 'commandes.numero', 'commandes.date', 'commandes.date_livraison_prevue', 'commandes.statut', 'clients.nom')
+                ->orderByDesc('commandes.date')
+                ->limit(100)
+                ->get()
+                ->map(fn ($row) => [
+                    'id' => (int) $row->id,
+                    'numero' => $row->numero,
+                    'date' => $row->date,
+                    'date_livraison_prevue' => $row->date_livraison_prevue,
+                    'statut' => $row->statut,
+                    'client' => $row->client,
+                    'quantite_commandee' => round((float) $row->quantite_commandee, 3),
+                    'quantite_livree' => round((float) $row->quantite_livree, 3),
+                    'quantite_restante' => round((float) $row->quantite_restante, 3),
+                    'total' => round((float) $row->total, 2),
+                ])
+                ->all(),
+
+            'ventes_directes_detaillees' => $ventesDirectesBase()
+                ->join('clients', 'ventes_directes.client_id', '=', 'clients.id')
+                ->leftJoin('lignes_vente_directe', 'ventes_directes.id', '=', 'lignes_vente_directe.vente_directe_id')
+                ->leftJoin('lignes_livraison', 'lignes_vente_directe.id', '=', 'lignes_livraison.ligne_vente_directe_id')
+                ->selectRaw("
+                    ventes_directes.id,
+                    ventes_directes.numero,
+                    ventes_directes.date,
+                    ventes_directes.statut,
+                    clients.nom as client,
+                    COALESCE(SUM(lignes_vente_directe.quantite), 0) as quantite_commandee,
+                    COALESCE(SUM(lignes_livraison.quantite_livree), 0) as quantite_livree,
+                    COALESCE(SUM(lignes_vente_directe.total_ligne), 0) as total
+                ")
+                ->groupBy('ventes_directes.id', 'ventes_directes.numero', 'ventes_directes.date', 'ventes_directes.statut', 'clients.nom')
+                ->orderByDesc('ventes_directes.date')
+                ->limit(100)
+                ->get()
+                ->map(fn ($row) => [
+                    'id' => (int) $row->id,
+                    'numero' => $row->numero,
+                    'date' => $row->date,
+                    'statut' => $row->statut,
+                    'client' => $row->client,
+                    'quantite_commandee' => round((float) $row->quantite_commandee, 3),
+                    'quantite_livree' => round((float) $row->quantite_livree, 3),
+                    'quantite_restante' => round(max(0, (float) $row->quantite_commandee - (float) $row->quantite_livree), 3),
+                    'total' => round((float) $row->total, 2),
+                ])
+                ->all(),
+
+            'livraisons_detaillees' => $livraisonsBase()
+                ->join('clients', 'livraisons.client_id', '=', 'clients.id')
+                ->leftJoin('lignes_livraison', 'livraisons.id', '=', 'lignes_livraison.livraison_id')
+                ->selectRaw("
+                    livraisons.id,
+                    livraisons.numero,
+                    livraisons.source_type,
+                    livraisons.source_id,
+                    livraisons.date_livraison,
+                    livraisons.statut,
+                    livraisons.reference_bc,
+                    livraisons.reference_facture,
+                    clients.nom as client,
+                    COUNT(lignes_livraison.id) as lignes_count,
+                    COALESCE(SUM(lignes_livraison.quantite_livree), 0) as quantite_livree
+                ")
+                ->groupBy(
+                    'livraisons.id',
+                    'livraisons.numero',
+                    'livraisons.source_type',
+                    'livraisons.source_id',
+                    'livraisons.date_livraison',
+                    'livraisons.statut',
+                    'livraisons.reference_bc',
+                    'livraisons.reference_facture',
+                    'clients.nom'
+                )
+                ->orderByDesc('livraisons.date_livraison')
+                ->limit(100)
+                ->get()
+                ->map(fn ($row) => [
+                    'id' => (int) $row->id,
+                    'numero' => $row->numero,
+                    'source_type' => $row->source_type,
+                    'source_id' => (int) $row->source_id,
+                    'date_livraison' => $row->date_livraison,
+                    'statut' => $row->statut,
+                    'client' => $row->client,
+                    'reference_bc' => $row->reference_bc,
+                    'reference_facture' => $row->reference_facture,
+                    'lignes_count' => (int) $row->lignes_count,
+                    'quantite_livree' => round((float) $row->quantite_livree, 3),
+                ])
+                ->all(),
+
+            'commandes_non_livrees' => $commandesBase()
                 ->join('clients', 'commandes.client_id', '=', 'clients.id')
                 ->leftJoin('ligne_commandes', 'commandes.id', '=', 'ligne_commandes.commande_id')
                 ->selectRaw('commandes.id, commandes.numero, commandes.date, commandes.date_livraison_prevue, commandes.statut, clients.nom as client, SUM(ligne_commandes.quantite_restante) as quantite_restante')

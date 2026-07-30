@@ -11,9 +11,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use App\Services\ReportVisibilityService;
 
 class CommandeController extends BaseApiController
 {
+    public function __construct(
+        private readonly ReportVisibilityService $visibility
+    ) {}
     public function index(Request $request): JsonResponse
     {
         $query = Commande::with([
@@ -23,6 +27,8 @@ class CommandeController extends BaseApiController
             'lignes.produit',
             'lignes.classement',
         ]);
+
+        $this->visibility->restrictCommercialEloquent($query, 'commandes', $request->user());
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -94,6 +100,9 @@ class CommandeController extends BaseApiController
 
     public function show(Commande $commande): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($commande, request()->user())) {
+            return $this->forbidden('Vous ne pouvez pas consulter cette commande.');
+        }
         $commande->load('client', 'location', 'lignes.produit', 'lignes.classement', 'createur');
 
         return $this->success(new CommandeResource($commande));
@@ -101,6 +110,9 @@ class CommandeController extends BaseApiController
 
     public function update(Request $request, Commande $commande): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($commande, $request->user())) {
+            return $this->forbidden('Vous ne pouvez pas modifier cette commande.');
+        }
         $this->authorize('update', $commande);
 
         $commande->update($request->only([
@@ -124,6 +136,10 @@ class CommandeController extends BaseApiController
 
     public function duplicate(Request $request, Commande $commande): JsonResponse
     {
+
+        if (!$this->visibility->canAccessCreatedRecord($commande, $request->user())) {
+            return $this->forbidden('Vous ne pouvez pas dupliquer cette commande.');
+        }
         $nouvelle = DB::transaction(function () use ($commande, $request) {
             $commande->load('lignes');
 

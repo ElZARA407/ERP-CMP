@@ -10,16 +10,19 @@ use App\Services\LivraisonService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\ReportVisibilityService;
 
 class LivraisonController extends BaseApiController
 {
     public function __construct(
-        private readonly LivraisonService $livraisonService
+        private readonly LivraisonService $livraisonService,
+        private readonly ReportVisibilityService $visibility
     ) {}
 
     public function index(Request $request): JsonResponse
     {
         $query = Livraison::with('client', 'createur');
+        $this->visibility->restrictLivraisonsFromCommercialScope($query, $request->user());
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -100,6 +103,9 @@ class LivraisonController extends BaseApiController
 
     public function show(Livraison $livraison): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($livraison, request()->user())) {
+            return $this->forbidden('Vous ne pouvez pas consulter cette livraison.');
+        }
         $livraison->load('client', 'lignes.produit', 'lignes.classement', 'createur', 'facture');
 
         return $this->success(new LivraisonResource($livraison));
@@ -107,6 +113,9 @@ class LivraisonController extends BaseApiController
 
     public function update(Request $request, Livraison $livraison): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($livraison, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette livraison.');
+        }
         if ($livraison->statut === 'livre') {
             return $this->error('Une livraison confirmee ne peut pas etre modifiee.', 422);
         }
@@ -131,6 +140,9 @@ class LivraisonController extends BaseApiController
 
     public function confirmer(Request $request, Livraison $livraison): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($livraison, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette livraison.');
+        }
         $operateur = $request->user();
 
         if (! $operateur instanceof Utilisateur) {
@@ -151,6 +163,9 @@ class LivraisonController extends BaseApiController
 
     public function annuler(Request $request, Livraison $livraison): JsonResponse
     {
+        if (!$this->visibility->canAccessCreatedRecord($livraison, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette livraison.');
+        }
         $operateur = $request->user();
 
         if (! $operateur instanceof Utilisateur) {

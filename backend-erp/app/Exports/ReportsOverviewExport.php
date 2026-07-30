@@ -17,6 +17,9 @@ class ReportsOverviewExport implements WithMultipleSheets
             'commercial' => [
                 new SimpleArraySheet('Ventes produits', $this->payload['commercial']['ventes_par_produit'] ?? []),
                 new SimpleArraySheet('Ventes clients', $this->payload['commercial']['ventes_par_client'] ?? []),
+                new SimpleArraySheet('Commandes détaillées', $this->payload['commercial']['commandes_detaillees'] ?? []),
+                new SimpleArraySheet('Ventes directes', $this->payload['commercial']['ventes_directes_detaillees'] ?? []),
+                new SimpleArraySheet('Livraisons BL', $this->payload['commercial']['livraisons_detaillees'] ?? []),
                 new SimpleArraySheet('Commandes ouvertes', $this->payload['commercial']['commandes_non_livrees'] ?? []),
             ],
             'stock' => [

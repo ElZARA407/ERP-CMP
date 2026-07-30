@@ -34,7 +34,8 @@ class ReportController extends BaseApiController
                     'entite_type' => $validated['mouvement_entite_type'] ?? null,
                     'entite_id' => $validated['mouvement_entite_id'] ?? null,
                     'motif' => $validated['mouvement_motif'] ?? null,
-                ]
+                ],
+                $request->user()
             )
         );
     }
@@ -57,7 +58,8 @@ class ReportController extends BaseApiController
                 'entite_type' => $validated['mouvement_entite_type'] ?? null,
                 'entite_id' => $validated['mouvement_entite_id'] ?? null,
                 'motif' => $validated['mouvement_motif'] ?? null,
-            ]
+            ],
+            $request->user()
         );
 
         $section = $validated['section'];
