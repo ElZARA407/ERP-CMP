@@ -30,8 +30,24 @@ class CommandeController extends BaseApiController
 
         $this->visibility->restrictCommercialEloquent($query, 'commandes', $request->user());
 
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('numero', 'like', "%{$search}%")
+                    ->orWhereHas('client', function ($client) use ($search) {
+                        $client->where('nom', 'like', "%{$search}%")
+                            ->orWhere('reference', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('lignes.produit', function ($produit) use ($search) {
+                        $produit->where('designation', 'like', "%{$search}%")
+                            ->orWhere('nomencla', 'like', "%{$search}%");
+                    });
+            });
+        }
+
         if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
+            $query->where('client_id', (int) $request->client_id);
         }
 
         if ($request->filled('statut')) {
@@ -39,25 +55,26 @@ class CommandeController extends BaseApiController
         }
 
         if ($request->filled('location_id')) {
-            $query->where('location_id', $request->location_id);
+            $query->where('location_id', (int) $request->location_id);
         }
 
         if ($request->boolean('en_retard')) {
             $query->nonLivrees()
-                ->where('date_livraison_prevue', '<', now());
+                ->whereDate('date_livraison_prevue', '<', now()->toDateString());
         }
 
         if ($request->filled('date_debut')) {
-            $query->where('date', '>=', $request->date_debut);
+            $query->whereDate('date', '>=', $request->date_debut);
         }
 
         if ($request->filled('date_fin')) {
-            $query->where('date', '<=', $request->date_fin);
+            $query->whereDate('date', '<=', $request->date_fin);
         }
 
         $commandes = $query
             ->orderByDesc('date')
-            ->paginate($request->get('per_page', config('api.per_page')));
+            ->orderByDesc('id')
+            ->paginate((int) $request->get('per_page', config('api.per_page')));
 
         return $this->success(
             CommandeResource::collection($commandes)->response()->getData(true)

@@ -28,7 +28,7 @@ class StockController extends BaseApiController
     public function index(Request $request): JsonResponse
     {
         $query = Stock::with('location', 'classement', 'entite')
-            ->where('stock_total', '>', 0);
+            ->when(!$request->boolean('include_zero'), fn ($stockQuery) => $stockQuery->where('stock_total', '>', 0));
 
         if ($request->filled('location_id')) {
             $query->where('location_id', $request->location_id);
@@ -36,6 +36,10 @@ class StockController extends BaseApiController
 
         if ($request->filled('entite_type')) {
             $query->where('entite_type', $request->entite_type);
+        }
+
+        if ($request->filled('entite_id')) {
+            $query->where('entite_id', (int) $request->entite_id);
         }
 
         if ($request->filled('search')) {
@@ -112,6 +116,10 @@ class StockController extends BaseApiController
 
         if ($request->filled('entite_type')) {
             $query->where('entite_type', $request->entite_type);
+        }
+
+        if ($request->filled('entite_id')) {
+            $query->where('entite_id', (int) $request->entite_id);
         }
 
         $stocks = $query->get()->filter(function (Stock $stock) {
@@ -357,6 +365,10 @@ class StockController extends BaseApiController
 
         if ($request->filled('entite_type')) {
             $query->where('entite_type', $request->entite_type);
+        }
+
+        if ($request->filled('entite_id')) {
+            $query->where('entite_id', (int) $request->entite_id);
         }
 
         if ($request->filled('search')) {

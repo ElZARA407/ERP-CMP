@@ -172,8 +172,6 @@ class StockService
                 $classementId
             );
 
-            // Un seul mouvement : ENTREE si le stock augmente, SORTIE s'il diminue
-            // Le motif + reference_type + ecart portent toute l'information comptable
             $type = ($ecart >= 0) ? TypeMouvement::ENTREE : TypeMouvement::SORTIE;
 
             return $this->enregistrerMouvement(

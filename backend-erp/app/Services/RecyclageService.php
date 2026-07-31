@@ -1,109 +1,98 @@
 <?php
-// app/Services/RecyclageService.php
 
 namespace App\Services;
 
-use App\Models\BonTransformation;
+use App\Enums\StatutRecyclage;
 use App\Models\BtSession;
 use App\Models\Utilisateur;
-use App\Enums\StatutRecyclage;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Service de gestion du cycle de recyclage/broyage.
- * Architecture miroir de ProductionService.
- */
 class RecyclageService
 {
     public function __construct(
-        private readonly StockService $stockService
+        private readonly StockService $stockService,
+        private readonly TransformationCalculService $calculService
     ) {}
 
     public function validerSession(BtSession $session, Utilisateur $valideur): void
     {
         if ($session->statut !== 'ouverte') {
-            throw new \DomainException(
-                "La session {$session->session_numero} est déjà validée."
-            );
+            throw new \DomainException("La session {$session->session_numero} est déjà validée.");
         }
 
         DB::transaction(function () use ($session, $valideur) {
+            $session->loadMissing(
+                'bonTransformation',
+                'matieres.matiere',
+                'employes.employe.poste',
+                'evenements'
+            );
+
             $bt = $session->bonTransformation;
 
-            // 1. Entrées et sorties matières
-            foreach ($session->matieres as $btMp) {
-                if ($btMp->type === 'entree') {
-                    $quantiteNette = (float) $btMp->quantite
-                                   - (float) $btMp->quantite_restituee;
+            foreach ($session->matieres->where('type', 'sortie') as $line) {
+                $quantiteNette = max(0, (float) $line->quantite - (float) $line->quantite_restituee);
 
-                    if ($quantiteNette > 0) {
-                        $this->stockService->sortie(
-                            locationId    : $bt->location_id,
-                            entiteType    : 'matiere',
-                            entiteId      : $btMp->matiere_id,
-                            quantite      : $quantiteNette,
-                            referenceType : 'bt_session',
-                            referenceId   : $session->id,
-                            operateur     : $valideur
-                        );
-                    }
-                } else {
-                    // Sortie = matière broyée produite → entrée stock
-                    $this->stockService->entree(
-                        locationId    : $bt->location_id,
-                        entiteType    : 'matiere',
-                        entiteId      : $btMp->matiere_id,
-                        quantite      : (float) $btMp->quantite,
-                        referenceType : 'bt_session',
-                        referenceId   : $session->id,
-                        operateur     : $valideur
+                if ($quantiteNette > 0) {
+                    $this->stockService->sortie(
+                        locationId: $bt->location_id,
+                        entiteType: 'matiere',
+                        entiteId: $line->matiere_id,
+                        quantite: $quantiteNette,
+                        referenceType: 'bt_session',
+                        referenceId: $session->id,
+                        operateur: $valideur,
+                        classementId: null
                     );
                 }
             }
 
-            // 2. Calcul écarts (taux de perte)
-            $ecarts = $session->calculerEcarts();
+            foreach ($session->matieres->where('type', 'entree') as $line) {
+                if ((float) $line->quantite <= 0) {
+                    continue;
+                }
 
-            // 3. Calcul heures effectives MO
-            $dureesPauses = $this->calculerDureePauses($session);
-
-            foreach ($session->employes as $btEmploye) {
-                $heuresEffectives = max(
-                    0,
-                    (float) $btEmploye->heures_brutes - $dureesPauses
+                $this->stockService->entree(
+                    locationId: $bt->location_id,
+                    entiteType: 'matiere',
+                    entiteId: $line->matiere_id,
+                    quantite: (float) $line->quantite,
+                    referenceType: 'bt_session',
+                    referenceId: $session->id,
+                    operateur: $valideur,
+                    classementId: null
                 );
-
-                $btEmploye->update([
-                    'heures_effectives' => $heuresEffectives,
-                    'cout' => round(
-                        $heuresEffectives * (float) $btEmploye->taux_horaire,
-                        2
-                    ),
-                ]);
             }
 
-            // 4. Validation session
+            $calcul = $this->calculService->calculateAndPersistSession($session);
+
             $session->update([
-                'statut'    => 'validee',
-                'ecarts'    => $ecarts,
+                'statut' => 'validee',
+                'ecarts' => (float) $calcul->taux_perte,
                 'valide_by' => $valideur->id,
             ]);
 
-            // 5. Mise à jour statut BT
-            if ($bt->statut === StatutRecyclage::OUVERT) {
-                $bt->update(['statut' => StatutRecyclage::EN_COURS->value]);
-            }
+            $this->recalculerStatutBt($session->bonTransformation);
         });
     }
 
-    private function calculerDureePauses(BtSession $session): float
+    private function recalculerStatutBt($bt): void
     {
-        return (float) $session->evenements()
-            ->where('type_evenement', 'pause')
-            ->whereNotNull('heure_fin')
-            ->selectRaw(
-                'SUM(TIME_TO_SEC(TIMEDIFF(heure_fin, heure_debut)) / 3600) as total'
-            )
-            ->value('total');
+        $bt->refresh();
+
+        $quantitePrevue = (float) $bt->quantite_entree;
+        $quantiteConsommee = $bt->quantiteNetteConsommeeTotale();
+
+        if ($quantitePrevue > 0 && $quantiteConsommee >= $quantitePrevue) {
+            $bt->update(['statut' => StatutRecyclage::CLOTURE->value]);
+            return;
+        }
+
+        if ($bt->sessions()->where('statut', 'validee')->exists()) {
+            $bt->update(['statut' => StatutRecyclage::EN_COURS->value]);
+            return;
+        }
+
+        $bt->update(['statut' => StatutRecyclage::OUVERT->value]);
     }
 }

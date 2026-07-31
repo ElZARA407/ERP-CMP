@@ -21,11 +21,32 @@ class LivraisonController extends BaseApiController
 
     public function index(Request $request): JsonResponse
     {
-        $query = Livraison::with('client', 'createur');
+        $query = Livraison::with('client', 'createur', 'lignes.produit', 'lignes.classement');
+
         $this->visibility->restrictLivraisonsFromCommercialScope($query, $request->user());
 
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('numero', 'like', "%{$search}%")
+                    ->orWhere('reference_bc', 'like', "%{$search}%")
+                    ->orWhere('reference_facture', 'like', "%{$search}%")
+                    ->orWhere('chauffeur', 'like', "%{$search}%")
+                    ->orWhere('vehicule', 'like', "%{$search}%")
+                    ->orWhereHas('client', function ($client) use ($search) {
+                        $client->where('nom', 'like', "%{$search}%")
+                            ->orWhere('reference', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('lignes.produit', function ($produit) use ($search) {
+                        $produit->where('designation', 'like', "%{$search}%")
+                            ->orWhere('nomencla', 'like', "%{$search}%");
+                    });
+            });
+        }
+
         if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
+            $query->where('client_id', (int) $request->client_id);
         }
 
         if ($request->filled('statut')) {
@@ -42,9 +63,18 @@ class LivraisonController extends BaseApiController
                 : $query->whereDoesntHave('facture');
         }
 
+        if ($request->filled('date_debut')) {
+            $query->whereDate('date_livraison', '>=', $request->date_debut);
+        }
+
+        if ($request->filled('date_fin')) {
+            $query->whereDate('date_livraison', '<=', $request->date_fin);
+        }
+
         $livraisons = $query
-            ->orderByDesc('created_at')
-            ->paginate($request->get('per_page', config('api.per_page')));
+            ->orderByDesc('date_livraison')
+            ->orderByDesc('id')
+            ->paginate((int) $request->get('per_page', config('api.per_page')));
 
         return $this->success(
             LivraisonResource::collection($livraisons)->response()->getData(true)

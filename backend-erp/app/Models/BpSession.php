@@ -1,5 +1,4 @@
 <?php
-// app/Models/BpSession.php
 
 namespace App\Models;
 
@@ -9,90 +8,96 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Table('bp_sessions')]
+#[Table('bt_sessions')]
 #[Fillable(
-    'bon_production_id', 'session_numero', 'date_session',
-    'machine_id', 'cout_electricite', 'cout_total',
-    'statut', 'saisi_by', 'valide_by'
+    'bon_transformation_id',
+    'session_numero',
+    'date_session',
+    'machine_id',
+    'machine_broyage',
+    'ecarts',
+    'statut',
+    'saisi_by',
+    'valide_by'
 )]
-class BpSession extends Model
+class BtSession extends Model
 {
     use HasFactory, HasAuditFields;
 
     protected function casts(): array
     {
         return [
-            'date_session'     => 'date',
-            'cout_electricite' => 'decimal:2',
-            'cout_total'       => 'decimal:2',
+            'date_session' => 'date',
+            'ecarts' => 'decimal:2',
         ];
     }
 
-    public function scopeValidees($query)
+    public function bonTransformation(): BelongsTo
     {
-        return $query->where('statut', 'validee');
-    }
-
-    public function scopeOuvertes($query)
-    {
-        return $query->where('statut', 'ouverte');
-    }
-
-    public function bonProduction(): BelongsTo
-    {
-        return $this->belongsTo(BonProduction::class);
+        return $this->belongsTo(BonTransformation::class);
     }
 
     public function machine(): BelongsTo
     {
-        return $this->belongsTo(Machine::class);
+        return $this->belongsTo(Machine::class, 'machine_id');
     }
 
     public function matieres(): HasMany
     {
-        return $this->hasMany(BpMp::class);
-    }
-
-    public function obtenus(): HasMany
-    {
-        return $this->hasMany(BpObtenue::class);
+        return $this->hasMany(BtMp::class);
     }
 
     public function employes(): HasMany
     {
-        return $this->hasMany(BpEmploye::class);
+        return $this->hasMany(BtEmploye::class);
     }
 
     public function evenements(): HasMany
     {
-        return $this->hasMany(BpEvenement::class);
+        return $this->hasMany(BtEvenement::class);
     }
 
     public function calcul(): HasOne
     {
-        return $this->hasOne(BpSessionCalcul::class, 'bp_session_id');
+        return $this->hasOne(BtSessionCalcul::class, 'bt_session_id');
     }
 
-    public function coutMatieresTotal(): float
+    public function sorties(): HasMany
     {
-        return (float) $this->matieres()->sum('cout_matiere');
+        return $this->matieres()->where('type', 'sortie');
     }
 
-    public function coutMainOeuvreTotal(): float
+    public function entrees(): HasMany
     {
-        return (float) $this->employes()->sum('cout');
+        return $this->matieres()->where('type', 'entree');
     }
 
-    public function coutTotal(): float
+    public function quantiteSortie(): float
     {
-        return round(
-            $this->coutMatieresTotal()
-            + $this->coutMainOeuvreTotal()
-            + (float) $this->cout_electricite,
-            2
-        );
+        return (float) $this->matieres()
+            ->where('type', 'sortie')
+            ->sum('quantite');
+    }
+
+    public function quantiteRestituee(): float
+    {
+        return (float) $this->matieres()
+            ->where('type', 'sortie')
+            ->sum('quantite_restituee');
+    }
+
+    public function quantiteNetteConsommee(): float
+    {
+        return max(0, $this->quantiteSortie() - $this->quantiteRestituee());
+    }
+
+    public function quantiteEntree(): float
+    {
+        return (float) $this->matieres()
+            ->where('type', 'entree')
+            ->sum('quantite');
     }
 }

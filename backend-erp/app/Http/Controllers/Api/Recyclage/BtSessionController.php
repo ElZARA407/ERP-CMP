@@ -1,18 +1,21 @@
 <?php
-// app/Http/Controllers/Api/Recyclage/BtSessionController.php
 
 namespace App\Http\Controllers\Api\Recyclage;
 
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\BtSessionResource;
 use App\Models\BonTransformation;
-use App\Models\BtSession;
-use App\Models\BtMp;
 use App\Models\BtEmploye;
 use App\Models\BtEvenement;
+use App\Models\BtMp;
+use App\Models\BtSession;
+use App\Models\Employe;
+use App\Models\MatierePremiere;
 use App\Services\RecyclageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class BtSessionController extends BaseApiController
 {
@@ -23,7 +26,13 @@ class BtSessionController extends BaseApiController
     public function index(BonTransformation $bonsTransformation): JsonResponse
     {
         $sessions = $bonsTransformation->sessions()
-            ->with('matieres.matiere', 'employes.employe')
+            ->with(
+                'machine',
+                'matieres.matiere',
+                'employes.employe.poste',
+                'evenements.operateur',
+                'calcul'
+            )
             ->orderBy('session_numero')
             ->get();
 
@@ -37,20 +46,106 @@ class BtSessionController extends BaseApiController
         }
 
         $validated = $request->validate([
-            'date_session'    => ['required', 'date'],
-            'machine_broyage' => ['required', 'string', 'max:100'],
+            'date_session' => ['required', 'date'],
+            'machine_id' => ['required', 'exists:machines,id'],
+
+            'sortie.quantite_utilisee' => ['required', 'numeric', 'min:0.001'],
+            'sortie.quantite_restituee' => ['nullable', 'numeric', 'min:0', 'lte:sortie.quantite_utilisee'],
+
+            'entrees' => ['required', 'array', 'min:1'],
+            'entrees.*.matiere_id' => ['required', 'exists:matieres_premieres,id'],
+            'entrees.*.quantite' => ['required', 'numeric', 'min:0.001'],
+
+            'employes' => ['nullable', 'array'],
+            'employes.*.employe_id' => ['required', 'exists:employes,id'],
+            'employes.*.heures_brutes' => ['nullable', 'numeric', 'min:0'],
+
+            'evenements' => ['nullable', 'array'],
+            'evenements.*.type_evenement' => ['required', Rule::in(['broyage', 'pause', 'panne', 'autre'])],
+            'evenements.*.heure_debut' => ['required', 'date_format:H:i'],
+            'evenements.*.heure_fin' => ['nullable', 'date_format:H:i'],
+            'evenements.*.description' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $dernierNumero = $bonsTransformation->sessions()->max('session_numero') ?? 0;
+        $bonsTransformation->loadMissing('matiereBrute');
 
-        $session = BtSession::create([
-            'bon_transformation_id' => $bonsTransformation->id,
-            'session_numero'        => $dernierNumero + 1,
-            ...$validated,
-            'statut'                => 'ouverte',
-            'ecarts'                => 0,
-            'saisi_by'              => auth()->id(),
-        ]);
+        if ($bonsTransformation->matiereBrute?->type !== 'brute') {
+            return $this->error('La matière du BT doit être une matière brute.', 422);
+        }
+
+        foreach ($validated['entrees'] as $entree) {
+            $matiere = MatierePremiere::find($entree['matiere_id']);
+            if (!$matiere || $matiere->type !== 'broyee') {
+                return $this->error('Les matières obtenues doivent être de type broyée.', 422);
+            }
+        }
+
+        $session = DB::transaction(function () use ($bonsTransformation, $validated) {
+            $session = BtSession::create([
+                'bon_transformation_id' => $bonsTransformation->id,
+                'session_numero' => $bonsTransformation->prochainNumeroSession(),
+                'date_session' => $validated['date_session'],
+                'machine_id' => $validated['machine_id'],
+                'machine_broyage' => null,
+                'ecarts' => 0,
+                'statut' => 'ouverte',
+                'saisi_by' => auth()->id(),
+            ]);
+
+            BtMp::create([
+                'bt_session_id' => $session->id,
+                'matiere_id' => $bonsTransformation->matiere_brute_id,
+                'type' => 'sortie',
+                'quantite' => $validated['sortie']['quantite_utilisee'],
+                'quantite_restituee' => $validated['sortie']['quantite_restituee'] ?? 0,
+            ]);
+
+            foreach ($validated['entrees'] as $row) {
+                BtMp::create([
+                    'bt_session_id' => $session->id,
+                    'matiere_id' => $row['matiere_id'],
+                    'type' => 'entree',
+                    'quantite' => $row['quantite'],
+                    'quantite_restituee' => 0,
+                ]);
+            }
+
+            foreach ($validated['employes'] ?? [] as $row) {
+                $employe = Employe::with('poste')->find($row['employe_id']);
+                $tauxHoraire = $employe?->tauxHoraireActuel() ?? 0;
+                $heuresBrutes = (float) ($row['heures_brutes'] ?? 0);
+
+                BtEmploye::create([
+                    'bt_session_id' => $session->id,
+                    'employe_id' => $row['employe_id'],
+                    'heures_brutes' => $heuresBrutes,
+                    'heures_effectives' => $heuresBrutes,
+                    'taux_horaire' => $tauxHoraire,
+                    'cout' => round($heuresBrutes * (float) $tauxHoraire, 2),
+                ]);
+            }
+
+            foreach ($validated['evenements'] ?? [] as $row) {
+                BtEvenement::create([
+                    'bt_session_id' => $session->id,
+                    'type_evenement' => $row['type_evenement'],
+                    'heure_debut' => $row['heure_debut'],
+                    'heure_fin' => $row['heure_fin'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'operateur_id' => auth()->id(),
+                ]);
+            }
+
+            return $session;
+        });
+
+        $session->load(
+            'machine',
+            'matieres.matiere',
+            'employes.employe.poste',
+            'evenements.operateur',
+            'calcul'
+        );
 
         return $this->created(new BtSessionResource($session));
     }
@@ -58,10 +153,12 @@ class BtSessionController extends BaseApiController
     public function show(BtSession $btSession): JsonResponse
     {
         $btSession->load(
+            'machine',
             'matieres.matiere',
             'employes.employe.poste',
             'evenements.operateur',
-            'bonTransformation'
+            'bonTransformation.matiereBrute',
+            'calcul'
         );
 
         return $this->success(new BtSessionResource($btSession));
@@ -73,9 +170,16 @@ class BtSessionController extends BaseApiController
             return $this->error('Une session validée ne peut pas être modifiée.', 422);
         }
 
-        $btSession->update($request->only(['machine_broyage']));
+        $validated = $request->validate([
+            'machine_id' => ['sometimes', 'exists:machines,id'],
+        ]);
 
-        return $this->success(new BtSessionResource($btSession->fresh()), 'Session mise à jour.');
+        $btSession->update($validated);
+
+        return $this->success(
+            new BtSessionResource($btSession->fresh(['machine'])),
+            'Session mise à jour.'
+        );
     }
 
     public function destroy(BtSession $btSession): JsonResponse
@@ -98,72 +202,16 @@ class BtSessionController extends BaseApiController
         }
 
         return $this->success(
-            new BtSessionResource($btSession->fresh()->load('matieres', 'employes')),
+            new BtSessionResource(
+                $btSession->fresh()->load(
+                    'machine',
+                    'matieres.matiere',
+                    'employes.employe.poste',
+                    'evenements.operateur',
+                    'calcul'
+                )
+            ),
             'Session validée. Stocks mis à jour.'
         );
-    }
-
-    public function ajouterMatiere(Request $request, BtSession $btSession): JsonResponse
-    {
-        if ($btSession->statut === 'validee') {
-            return $this->error('Session déjà validée.', 422);
-        }
-
-        $validated = $request->validate([
-            'matiere_id'         => ['required', 'exists:matieres_premieres,id'],
-            'type'               => ['required', 'in:entree,sortie'],
-            'quantite'           => ['required', 'numeric', 'min:0.001'],
-            'quantite_restituee' => ['nullable', 'numeric', 'min:0'],
-        ]);
-
-        $mp = BtMp::create([
-            'bt_session_id' => $btSession->id,
-            ...$validated,
-            'quantite_restituee' => $validated['quantite_restituee'] ?? 0,
-        ]);
-
-        return $this->created($mp->load('matiere'));
-    }
-
-    public function ajouterEmploye(Request $request, BtSession $btSession): JsonResponse
-    {
-        if ($btSession->statut === 'validee') {
-            return $this->error('Session déjà validée.', 422);
-        }
-
-        $validated = $request->validate([
-            'employe_id'    => ['required', 'exists:employes,id'],
-            'heures_brutes' => ['required', 'numeric', 'min:0.1'],
-        ]);
-
-        $tauxHoraire = \App\Models\Employe::find($validated['employe_id'])
-            ->tauxHoraireActuel();
-
-        $btEmploye = BtEmploye::create([
-            'bt_session_id' => $btSession->id,
-            'employe_id'    => $validated['employe_id'],
-            'heures_brutes' => $validated['heures_brutes'],
-            'taux_horaire'  => $tauxHoraire,
-        ]);
-
-        return $this->created($btEmploye->load('employe.poste'));
-    }
-
-    public function ajouterEvenement(Request $request, BtSession $btSession): JsonResponse
-    {
-        $validated = $request->validate([
-            'type_evenement' => ['required', 'in:broyage,pause,panne,autre'],
-            'heure_debut'    => ['required', 'date_format:H:i'],
-            'heure_fin'      => ['nullable', 'date_format:H:i', 'after:heure_debut'],
-            'description'    => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $evenement = BtEvenement::create([
-            'bt_session_id' => $btSession->id,
-            ...$validated,
-            'operateur_id'  => auth()->id(),
-        ]);
-
-        return $this->created($evenement);
     }
 }

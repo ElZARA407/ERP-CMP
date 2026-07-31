@@ -167,6 +167,8 @@ class MatierePremierController extends BaseApiController
 
     public function show(MatierePremiere $matieresPremiere): JsonResponse
     {
+        $matieresPremiere->load('stocks.location');
+
         return $this->success(new MatierePremiereResource($matieresPremiere));
     }
 

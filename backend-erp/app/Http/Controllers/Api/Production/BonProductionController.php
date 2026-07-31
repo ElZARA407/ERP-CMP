@@ -24,8 +24,26 @@ class BonProductionController extends BaseApiController
 
         $query = BonProduction::with('location', 'produit', 'machine', 'createur');
 
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('numero', 'like', "%{$search}%")
+                    ->orWhereHas('produit', function ($produit) use ($search) {
+                        $produit->where('designation', 'like', "%{$search}%")
+                            ->orWhere('nomencla', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('machine', function ($machine) use ($search) {
+                        $machine->where('nom', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('location', function ($location) use ($search) {
+                        $location->where('nom', 'like', "%{$search}%");
+                    });
+            });
+        }
+
         if ($request->filled('location_id')) {
-            $query->where('location_id', $request->location_id);
+            $query->where('location_id', (int) $request->location_id);
         }
 
         if ($request->filled('statut')) {
@@ -33,20 +51,25 @@ class BonProductionController extends BaseApiController
         }
 
         if ($request->filled('produit_id')) {
-            $query->where('produit_id', $request->produit_id);
+            $query->where('produit_id', (int) $request->produit_id);
+        }
+
+        if ($request->filled('machine_id')) {
+            $query->where('machine_id', (int) $request->machine_id);
         }
 
         if ($request->filled('date_debut')) {
-            $query->where('date', '>=', $request->date_debut);
+            $query->whereDate('date', '>=', $request->date_debut);
         }
 
         if ($request->filled('date_fin')) {
-            $query->where('date', '<=', $request->date_fin);
+            $query->whereDate('date', '<=', $request->date_fin);
         }
 
         $bps = $query
             ->orderByDesc('date')
-            ->paginate($request->get('per_page', config('api.per_page')));
+            ->orderByDesc('id')
+            ->paginate((int) $request->get('per_page', config('api.per_page')));
 
         return $this->success(
             BonProductionResource::collection($bps)->response()->getData(true)

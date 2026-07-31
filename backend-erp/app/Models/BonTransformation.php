@@ -1,13 +1,12 @@
 <?php
-// app/Models/BonTransformation.php
 
 namespace App\Models;
 
 use App\Enums\StatutRecyclage;
-use App\Traits\HasReference;
 use App\Traits\HasAuditFields;
-use Illuminate\Database\Eloquent\Attributes\Table;
+use App\Traits\HasReference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,26 +14,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Table('bon_transformations')]
 #[Fillable(
-    'numero', 'date', 'location_id',
-    'matiere_brute_id', 'matiere_broyee_id',
-    'machine_broyage', 'quantite_entree',
-    'statut', 'created_by', 'saisi_by', 'valide_by'
+    'numero',
+    'date',
+    'location_id',
+    'matiere_brute_id',
+    'machine_id',
+    'machine_broyage',
+    'quantite_entree',
+    'observations',
+    'statut',
+    'created_by',
+    'saisi_by',
+    'valide_by'
 )]
 class BonTransformation extends Model
 {
     use HasFactory, HasReference, HasAuditFields;
 
-    // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
-            'date'            => 'date',
+            'date' => 'date',
             'quantite_entree' => 'decimal:3',
-            'statut'          => StatutRecyclage::class,
+            'statut' => StatutRecyclage::class,
         ];
     }
 
-    // ── Scopes ─────────────────────────────────────────────
     public function scopeActifs($query)
     {
         return $query->whereIn('statut', [
@@ -43,7 +48,6 @@ class BonTransformation extends Model
         ]);
     }
 
-    // ── Relations ──────────────────────────────────────────
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
@@ -54,9 +58,9 @@ class BonTransformation extends Model
         return $this->belongsTo(MatierePremiere::class, 'matiere_brute_id');
     }
 
-    public function matiereBroyee(): BelongsTo
+    public function machine(): BelongsTo
     {
-        return $this->belongsTo(MatierePremiere::class, 'matiere_broyee_id');
+        return $this->belongsTo(Machine::class, 'machine_id');
     }
 
     public function sessions(): HasMany
@@ -64,27 +68,66 @@ class BonTransformation extends Model
         return $this->hasMany(BtSession::class);
     }
 
-    // ── Méthodes métier ────────────────────────────────────
+    public function prochainNumeroSession(): string
+    {
+        return static::generateReference('BT', 4, 'y', BtSession::class, 'session_numero');
+    }
+
+    public function quantiteNetteConsommeeTotale(): float
+    {
+        return (float) BtSessionCalcul::query()
+            ->whereHas('session', fn ($query) => $query
+                ->where('bon_transformation_id', $this->id)
+                ->where('statut', 'validee')
+            )
+            ->sum('quantite_nette_consomme');
+    }
+
     public function quantiteBroyeeTotale(): float
     {
-        return (float) BtMp::whereHas('session', function ($q) {
-            $q->where('bon_transformation_id', $this->id)
-              ->where('statut', 'validee');
-        })->where('type', 'sortie')->sum('quantite');
+        return (float) BtSessionCalcul::query()
+            ->whereHas('session', fn ($query) => $query
+                ->where('bon_transformation_id', $this->id)
+                ->where('statut', 'validee')
+            )
+            ->sum('quantite_broyee_obtenue');
+    }
+
+    public function perteTotale(): float
+    {
+        return max(0, $this->quantiteNetteConsommeeTotale() - $this->quantiteBroyeeTotale());
     }
 
     public function tauxRendementGlobal(): float
     {
-        if ($this->quantite_entree == 0) return 0;
+        $nette = $this->quantiteNetteConsommeeTotale();
 
-        return round(
-            ($this->quantiteBroyeeTotale() / $this->quantite_entree) * 100,
-            2
-        );
+        if ($nette <= 0) {
+            return 0;
+        }
+
+        return round(($this->quantiteBroyeeTotale() / $nette) * 100, 2);
     }
 
     public function tauxPerteGlobal(): float
     {
-        return round(100 - $this->tauxRendementGlobal(), 2);
+        $nette = $this->quantiteNetteConsommeeTotale();
+
+        if ($nette <= 0) {
+            return 0;
+        }
+
+        return round(($this->perteTotale() / $nette) * 100, 2);
+    }
+
+    public function tauxAvancement(): float
+    {
+        $prevue = (float) $this->quantite_entree;
+
+        if ($prevue <= 0) {
+            return 0;
+        }
+
+        return round(($this->quantiteNetteConsommeeTotale() / $prevue) * 100, 2);
     }
 }

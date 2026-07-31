@@ -21,10 +21,32 @@ class JournalAchatController extends BaseApiController
 
     public function index(Request $request): JsonResponse
     {
-        $query = JournalAchat::with('fournisseur', 'location', 'createur');
+        $query = JournalAchat::with('fournisseur', 'location', 'createur', 'lignes.matiere');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('numero', 'like', "%{$search}%")
+                    ->orWhere('vehicule', 'like', "%{$search}%")
+                    ->orWhere('observations', 'like', "%{$search}%")
+                    ->orWhereHas('fournisseur', function ($fournisseur) use ($search) {
+                        $fournisseur->where('nom', 'like', "%{$search}%")
+                            ->orWhere('reference', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('lignes.matiere', function ($matiere) use ($search) {
+                        $matiere->where('nom', 'like', "%{$search}%")
+                            ->orWhere('reference', 'like', "%{$search}%");
+                    });
+            });
+        }
 
         if ($request->filled('fournisseur_id')) {
-            $query->where('fournisseur_id', $request->fournisseur_id);
+            $query->where('fournisseur_id', (int) $request->fournisseur_id);
+        }
+
+        if ($request->filled('location_id')) {
+            $query->where('location_id', (int) $request->location_id);
         }
 
         if ($request->filled('statut')) {
@@ -32,15 +54,17 @@ class JournalAchatController extends BaseApiController
         }
 
         if ($request->filled('date_debut')) {
-            $query->where('date', '>=', $request->date_debut);
+            $query->whereDate('date', '>=', $request->date_debut);
         }
 
         if ($request->filled('date_fin')) {
-            $query->where('date', '<=', $request->date_fin);
+            $query->whereDate('date', '<=', $request->date_fin);
         }
 
-        $brs = $query->orderByDesc('date')
-                     ->paginate($request->get('per_page', config('api.per_page')));
+        $brs = $query
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->paginate((int) $request->get('per_page', config('api.per_page')));
 
         return $this->success(
             JournalAchatResource::collection($brs)->response()->getData(true)

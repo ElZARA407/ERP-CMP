@@ -1,12 +1,11 @@
 <?php
-// app/Http/Controllers/Api/Recyclage/BonTransformationController.php
 
 namespace App\Http\Controllers\Api\Recyclage;
 
+use App\Enums\StatutRecyclage;
 use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Resources\BonTransformationResource;
 use App\Models\BonTransformation;
-use App\Enums\StatutRecyclage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,12 +13,33 @@ class BonTransformationController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
-        $query = BonTransformation::with(
-            'location', 'matiereBrute', 'matiereBroyee', 'createur'
-        );
+        $query = BonTransformation::with('location', 'matiereBrute', 'machine', 'createur');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('numero', 'like', "%{$search}%")
+                    ->orWhereHas('matiereBrute', fn ($matiere) => $matiere
+                        ->where('nom', 'like', "%{$search}%")
+                        ->orWhere('reference', 'like', "%{$search}%")
+                    )
+                    ->orWhereHas('machine', fn ($machine) => $machine
+                        ->where('nom', 'like', "%{$search}%")
+                    );
+            });
+        }
 
         if ($request->filled('location_id')) {
-            $query->where('location_id', $request->location_id);
+            $query->where('location_id', (int) $request->location_id);
+        }
+
+        if ($request->filled('matiere_brute_id')) {
+            $query->where('matiere_brute_id', (int) $request->matiere_brute_id);
+        }
+
+        if ($request->filled('machine_id')) {
+            $query->where('machine_id', (int) $request->machine_id);
         }
 
         if ($request->filled('statut')) {
@@ -27,16 +47,17 @@ class BonTransformationController extends BaseApiController
         }
 
         if ($request->filled('date_debut')) {
-            $query->where('date', '>=', $request->date_debut);
+            $query->whereDate('date', '>=', $request->date_debut);
         }
 
         if ($request->filled('date_fin')) {
-            $query->where('date', '<=', $request->date_fin);
+            $query->whereDate('date', '<=', $request->date_fin);
         }
 
         $bts = $query
             ->orderByDesc('date')
-            ->paginate($request->get('per_page', config('api.per_page')));
+            ->orderByDesc('id')
+            ->paginate((int) $request->get('per_page', config('api.per_page')));
 
         return $this->success(
             BonTransformationResource::collection($bts)->response()->getData(true)
@@ -46,28 +67,25 @@ class BonTransformationController extends BaseApiController
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'date'              => ['required', 'date'],
-            'location_id'       => ['required', 'exists:locations,id'],
-            'matiere_brute_id'  => ['required', 'exists:matieres_premieres,id'],
-            'matiere_broyee_id' => [
-                'required',
-                'exists:matieres_premieres,id',
-                'different:matiere_brute_id',
-            ],
-            'machine_broyage'   => ['required', 'string', 'max:100'],
-            'quantite_entree'   => ['required', 'numeric', 'min:0.001'],
+            'date' => ['required', 'date'],
+            'location_id' => ['required', 'exists:locations,id'],
+            'matiere_brute_id' => ['required', 'exists:matieres_premieres,id'],
+            'machine_id' => ['required', 'exists:machines,id'],
+            'quantite_entree' => ['required', 'numeric', 'min:0.001'],
+            'observations' => ['nullable', 'string'],
         ]);
 
         $bt = BonTransformation::create([
-            'numero'     => BonTransformation::generateReference('BT'),
+            'numero' => BonTransformation::generateReference('BT', 4, 'y'),
+            'machine_broyage' => null,
             ...$validated,
-            'statut'     => StatutRecyclage::OUVERT->value,
+            'statut' => StatutRecyclage::OUVERT->value,
             'created_by' => auth()->id(),
         ]);
 
         return $this->created(
             new BonTransformationResource(
-                $bt->load('location', 'matiereBrute', 'matiereBroyee')
+                $bt->load('location', 'matiereBrute', 'machine')
             )
         );
     }
@@ -75,10 +93,15 @@ class BonTransformationController extends BaseApiController
     public function show(BonTransformation $bonsTransformation): JsonResponse
     {
         $bonsTransformation->load(
-            'location', 'matiereBrute', 'matiereBroyee', 'createur',
+            'location',
+            'matiereBrute',
+            'machine',
+            'createur',
+            'sessions.machine',
             'sessions.matieres.matiere',
-            'sessions.employes.employe',
-            'sessions.evenements'
+            'sessions.employes.employe.poste',
+            'sessions.evenements',
+            'sessions.calcul'
         );
 
         return $this->success(new BonTransformationResource($bonsTransformation));
@@ -91,14 +114,15 @@ class BonTransformationController extends BaseApiController
         }
 
         $validated = $request->validate([
-            'machine_broyage' => ['sometimes', 'string', 'max:100'],
+            'machine_id' => ['sometimes', 'exists:machines,id'],
             'quantite_entree' => ['sometimes', 'numeric', 'min:0.001'],
+            'observations' => ['nullable', 'string'],
         ]);
 
         $bonsTransformation->update($validated);
 
         return $this->success(
-            new BonTransformationResource($bonsTransformation->fresh()),
+            new BonTransformationResource($bonsTransformation->fresh(['location', 'matiereBrute', 'machine'])),
             'Bon de transformation mis à jour.'
         );
     }
@@ -117,7 +141,7 @@ class BonTransformationController extends BaseApiController
         $bonsTransformation->update(['statut' => StatutRecyclage::CLOTURE->value]);
 
         return $this->success(
-            new BonTransformationResource($bonsTransformation->fresh()),
+            new BonTransformationResource($bonsTransformation->fresh(['location', 'matiereBrute', 'machine'])),
             'Bon de transformation clôturé.'
         );
     }
