@@ -49,8 +49,9 @@ class BtSessionController extends BaseApiController
             'date_session' => ['required', 'date'],
             'machine_id' => ['required', 'exists:machines,id'],
 
-            'sortie.quantite_utilisee' => ['required', 'numeric', 'min:0.001'],
-            'sortie.quantite_restituee' => ['nullable', 'numeric', 'min:0', 'lte:sortie.quantite_utilisee'],
+            'sorties' => ['required', 'array', 'min:1'],
+            'sorties.*.quantite_utilisee' => ['required', 'numeric', 'min:0.001'],
+            'sorties.*.quantite_restituee' => ['nullable', 'numeric', 'min:0'],
 
             'entrees' => ['required', 'array', 'min:1'],
             'entrees.*.matiere_id' => ['required', 'exists:matieres_premieres,id'],
@@ -73,8 +74,15 @@ class BtSessionController extends BaseApiController
             return $this->error('La matière du BT doit être une matière brute.', 422);
         }
 
+        foreach ($validated['sorties'] as $sortie) {
+            if ((float) ($sortie['quantite_restituee'] ?? 0) > (float) $sortie['quantite_utilisee']) {
+                return $this->error('La quantité restituée ne peut pas dépasser la quantité utilisée.', 422);
+            }
+        }
+
         foreach ($validated['entrees'] as $entree) {
             $matiere = MatierePremiere::find($entree['matiere_id']);
+
             if (!$matiere || $matiere->type !== 'broyee') {
                 return $this->error('Les matières obtenues doivent être de type broyée.', 422);
             }
@@ -92,13 +100,15 @@ class BtSessionController extends BaseApiController
                 'saisi_by' => auth()->id(),
             ]);
 
-            BtMp::create([
-                'bt_session_id' => $session->id,
-                'matiere_id' => $bonsTransformation->matiere_brute_id,
-                'type' => 'sortie',
-                'quantite' => $validated['sortie']['quantite_utilisee'],
-                'quantite_restituee' => $validated['sortie']['quantite_restituee'] ?? 0,
-            ]);
+            foreach ($validated['sorties'] as $row) {
+                BtMp::create([
+                    'bt_session_id' => $session->id,
+                    'matiere_id' => $bonsTransformation->matiere_brute_id,
+                    'type' => 'sortie',
+                    'quantite' => $row['quantite_utilisee'],
+                    'quantite_restituee' => $row['quantite_restituee'] ?? 0,
+                ]);
+            }
 
             foreach ($validated['entrees'] as $row) {
                 BtMp::create([
@@ -139,20 +149,22 @@ class BtSessionController extends BaseApiController
             return $session;
         });
 
-        $session->load(
-            'machine',
-            'matieres.matiere',
-            'employes.employe.poste',
-            'evenements.operateur',
-            'calcul'
+        return $this->created(
+            new BtSessionResource(
+                $session->load(
+                    'machine',
+                    'matieres.matiere',
+                    'employes.employe.poste',
+                    'evenements.operateur',
+                    'calcul'
+                )
+            )
         );
-
-        return $this->created(new BtSessionResource($session));
     }
 
-    public function show(BtSession $btSession): JsonResponse
+    public function show(BtSession $session): JsonResponse
     {
-        $btSession->load(
+        $session->load(
             'machine',
             'matieres.matiere',
             'employes.employe.poste',
@@ -161,12 +173,12 @@ class BtSessionController extends BaseApiController
             'calcul'
         );
 
-        return $this->success(new BtSessionResource($btSession));
+        return $this->success(new BtSessionResource($session));
     }
 
-    public function update(Request $request, BtSession $btSession): JsonResponse
+    public function update(Request $request, BtSession $session): JsonResponse
     {
-        if ($btSession->statut === 'validee') {
+        if ((string) $session->statut === 'validee') {
             return $this->error('Une session validée ne peut pas être modifiée.', 422);
         }
 
@@ -174,36 +186,36 @@ class BtSessionController extends BaseApiController
             'machine_id' => ['sometimes', 'exists:machines,id'],
         ]);
 
-        $btSession->update($validated);
+        $session->update($validated);
 
         return $this->success(
-            new BtSessionResource($btSession->fresh(['machine'])),
+            new BtSessionResource($session->fresh(['machine'])),
             'Session mise à jour.'
         );
     }
 
-    public function destroy(BtSession $btSession): JsonResponse
+    public function destroy(BtSession $session): JsonResponse
     {
-        if ($btSession->statut === 'validee') {
+        if ((string) $session->statut === 'validee') {
             return $this->error('Une session validée ne peut pas être supprimée.', 422);
         }
 
-        $btSession->delete();
+        $session->delete();
 
         return $this->success(null, 'Session supprimée.');
     }
 
-    public function valider(BtSession $btSession): JsonResponse
+    public function valider(BtSession $session): JsonResponse
     {
         try {
-            $this->recyclageService->validerSession($btSession, auth()->user());
+            $this->recyclageService->validerSession($session, auth()->user());
         } catch (\DomainException $e) {
             return $this->error($e->getMessage(), 422);
         }
 
         return $this->success(
             new BtSessionResource(
-                $btSession->fresh()->load(
+                $session->fresh()->load(
                     'machine',
                     'matieres.matiere',
                     'employes.employe.poste',

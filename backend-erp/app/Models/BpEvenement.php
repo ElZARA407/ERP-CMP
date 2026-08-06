@@ -30,13 +30,18 @@ class BpEvenement extends Model
         return $this->belongsTo(Utilisateur::class, 'operateur_id');
     }
 
-    // ── Méthodes métier ────────────────────────────────────
     public function dureeEnHeures(): float
     {
         if (!$this->heure_fin) return 0;
 
         $debut = strtotime($this->heure_debut);
         $fin   = strtotime($this->heure_fin);
+
+        // Si l'événement traverse minuit, la fin est "avant" le début
+        // dans la même journée horaire -> on ajoute 24h à la fin
+        if ($fin < $debut) {
+            $fin += 24 * 3600;
+        }
 
         return round(($fin - $debut) / 3600, 2);
     }

@@ -76,9 +76,9 @@ class BonTransformationController extends BaseApiController
         ]);
 
         $bt = BonTransformation::create([
-            'numero' => BonTransformation::generateReference('BT', 4, 'y'),
-            'machine_broyage' => null,
+            'numero' => BonTransformation::prochainNumero(),
             ...$validated,
+            'machine_broyage' => null,
             'statut' => StatutRecyclage::OUVERT->value,
             'created_by' => auth()->id(),
         ]);

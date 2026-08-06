@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -22,6 +23,10 @@ return new class extends Migration
                     ->nullOnDelete();
             }
 
+            if (!Schema::hasColumn('bon_transformations', 'machine_broyage')) {
+                $table->string('machine_broyage', 100)->nullable()->after('machine_id');
+            }
+
             if (!Schema::hasColumn('bon_transformations', 'observations')) {
                 $table->text('observations')->nullable()->after('quantite_entree');
             }
@@ -35,33 +40,44 @@ return new class extends Migration
                     ->constrained('machines')
                     ->nullOnDelete();
             }
+
+            if (Schema::hasColumn('bt_sessions', 'machine_broyage')) {
+                DB::statement('ALTER TABLE bt_sessions MODIFY machine_broyage VARCHAR(100) NULL');
+            }
         });
 
-        Schema::create('bt_session_calculs', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('bt_session_id')
-                ->unique()
-                ->constrained('bt_sessions')
-                ->cascadeOnDelete();
+        if (Schema::hasColumn('bt_sessions', 'session_numero')) {
+            DB::statement('ALTER TABLE bt_sessions MODIFY session_numero VARCHAR(30) NOT NULL');
+        }
 
-            $table->decimal('quantite_brute_utilisee', 12, 3)->default(0);
-            $table->decimal('quantite_restituee', 12, 3)->default(0);
-            $table->decimal('quantite_nette_consomme', 12, 3)->default(0);
-            $table->decimal('quantite_broyee_obtenue', 12, 3)->default(0);
-            $table->decimal('perte', 12, 3)->default(0);
-            $table->decimal('rendement', 8, 3)->default(0);
-            $table->decimal('taux_perte', 8, 3)->default(0);
+        if (!Schema::hasTable('bt_session_calculs')) {
+            Schema::create('bt_session_calculs', function (Blueprint $table) {
+                $table->id();
 
-            $table->decimal('temps_brut', 8, 2)->default(0);
-            $table->decimal('temps_pause', 8, 2)->default(0);
-            $table->decimal('temps_panne', 8, 2)->default(0);
-            $table->decimal('temps_autre', 8, 2)->default(0);
-            $table->decimal('temps_effectif', 8, 2)->default(0);
+                $table->foreignId('bt_session_id')
+                    ->unique()
+                    ->constrained('bt_sessions')
+                    ->cascadeOnDelete();
 
-            $table->json('details_json')->nullable();
-            $table->timestamp('calcule_le')->nullable();
-            $table->timestamps();
-        });
+                $table->decimal('quantite_brute_utilisee', 12, 3)->default(0);
+                $table->decimal('quantite_restituee', 12, 3)->default(0);
+                $table->decimal('quantite_nette_consomme', 12, 3)->default(0);
+                $table->decimal('quantite_broyee_obtenue', 12, 3)->default(0);
+                $table->decimal('perte', 12, 3)->default(0);
+                $table->decimal('rendement', 8, 3)->default(0);
+                $table->decimal('taux_perte', 8, 3)->default(0);
+
+                $table->decimal('temps_brut', 8, 2)->default(0);
+                $table->decimal('temps_pause', 8, 2)->default(0);
+                $table->decimal('temps_panne', 8, 2)->default(0);
+                $table->decimal('temps_autre', 8, 2)->default(0);
+                $table->decimal('temps_effectif', 8, 2)->default(0);
+
+                $table->json('details_json')->nullable();
+                $table->timestamp('calcule_le')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void

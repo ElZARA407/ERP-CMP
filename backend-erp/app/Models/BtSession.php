@@ -1,57 +1,80 @@
 <?php
-// app/Models/BtSession.php
 
 namespace App\Models;
 
 use App\Traits\HasAuditFields;
-use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Table('bt_sessions')]
 #[Fillable(
-    'bon_transformation_id', 'session_numero',
-    'date_session', 'machine_broyage',
-    'ecarts', 'statut', 'saisi_by', 'valide_by'
+    'bon_transformation_id',
+    'session_numero',
+    'date_session',
+    'machine_id',
+    'machine_broyage',
+    'ecarts',
+    'statut',
+    'saisi_by',
+    'valide_by'
 )]
 class BtSession extends Model
 {
     use HasFactory, HasAuditFields;
 
-    // ── Casts ──────────────────────────────────────────────
     protected function casts(): array
     {
         return [
             'date_session' => 'date',
-            'ecarts'       => 'decimal:2',
+            'ecarts' => 'decimal:2',
         ];
     }
 
-    // ── Relations ──────────────────────────────────────────
     public function bonTransformation(): BelongsTo
     {
         return $this->belongsTo(BonTransformation::class);
     }
 
+    public function machine(): BelongsTo
+    {
+        return $this->belongsTo(Machine::class, 'machine_id');
+    }
+
     public function matieres(): HasMany
     {
-        return $this->hasMany(BtMp::class);
+        return $this->hasMany(BtMp::class, 'bt_session_id');
+    }
+
+    public function sorties(): HasMany
+    {
+        return $this->hasMany(BtMp::class, 'bt_session_id')->where('type', 'sortie');
+    }
+
+    public function entrees(): HasMany
+    {
+        return $this->hasMany(BtMp::class, 'bt_session_id')->where('type', 'entree');
     }
 
     public function employes(): HasMany
     {
-        return $this->hasMany(BtEmploye::class);
+        return $this->hasMany(BtEmploye::class, 'bt_session_id');
     }
 
     public function evenements(): HasMany
     {
-        return $this->hasMany(BtEvenement::class);
+        return $this->hasMany(BtEvenement::class, 'bt_session_id');
     }
 
-    // ── Méthodes métier ────────────────────────────────────
+    public function calcul(): HasOne
+    {
+        return $this->hasOne(BtSessionCalcul::class, 'bt_session_id');
+    }
+
     public function quantiteEntree(): float
     {
         return (float) $this->matieres()
@@ -66,14 +89,26 @@ class BtSession extends Model
             ->sum('quantite');
     }
 
+    public function quantiteRestituee(): float
+    {
+        return (float) $this->matieres()
+            ->where('type', 'sortie')
+            ->sum('quantite_restituee');
+    }
+
+    public function quantiteNetteConsommee(): float
+    {
+        return max(0, $this->quantiteSortie() - $this->quantiteRestituee());
+    }
+
     public function calculerEcarts(): float
     {
-        $entree = $this->quantiteEntree();
-        if ($entree == 0) return 0;
+        $nette = $this->quantiteNetteConsommee();
 
-        return round(
-            (($entree - $this->quantiteSortie()) / $entree) * 100,
-            2
-        );
+        if ($nette <= 0) {
+            return 0;
+        }
+
+        return round((($nette - $this->quantiteEntree()) / $nette) * 100, 2);
     }
 }

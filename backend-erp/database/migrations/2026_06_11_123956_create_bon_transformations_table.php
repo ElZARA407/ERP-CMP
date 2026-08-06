@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('matiere_broyee_id')
                   ->constrained('matieres_premieres')
                   ->restrictOnDelete();
-            $table->string('machine_broyage', 100);
+            // $table->string('machine_broyage', 100);
             $table->decimal('quantite_entree', 12, 3);
             $table->enum('statut', ['ouvert', 'en_cours', 'cloture', 'annule'])
                   ->default('ouvert');
@@ -56,3 +56,5 @@ return new class extends Migration
         Schema::dropIfExists('bon_transformations');
     }
 };
+
+

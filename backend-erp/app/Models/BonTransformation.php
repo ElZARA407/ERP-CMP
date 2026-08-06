@@ -19,7 +19,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'location_id',
     'matiere_brute_id',
     'machine_id',
-    'machine_broyage',
     'quantite_entree',
     'observations',
     'statut',
@@ -66,6 +65,11 @@ class BonTransformation extends Model
     public function sessions(): HasMany
     {
         return $this->hasMany(BtSession::class);
+    }
+
+    public static function prochainNumero(): string
+    {
+        return static::generateReference('OT', 4, 'y');
     }
 
     public function prochainNumeroSession(): string
