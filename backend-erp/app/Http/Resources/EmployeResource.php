@@ -19,6 +19,7 @@ class EmployeResource extends JsonResource
             'date_embauche' => $this->date_embauche?->toDateString(),
             'date_depart'   => $this->date_depart?->toDateString(),
             'actif'         => $this->actif,
+            'salaire_mensuel' => (float) $this->salaire_mensuel,
             'anciennete'    => $this->anciennete(),
             'poste'         => $this->whenLoaded('poste', fn() => [
                 'id'          => $this->poste->id,
@@ -26,6 +27,7 @@ class EmployeResource extends JsonResource
                 'taux_horaire'=> (float) $this->poste->taux_horaire,
             ]),
             'created_at'    => $this->created_at?->toDateString(),
+            
         ];
     }
 }

@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Table('employes')]
 #[Fillable(
     'matricule', 'nom', 'prenom', 'poste_id',
-    'date_embauche', 'date_depart', 'actif'
+    'date_embauche', 'date_depart', 'actif', 'salaire_mensuel'
 )]
 class Employe extends Model
 {
@@ -27,6 +27,7 @@ class Employe extends Model
             'date_embauche' => 'date',
             'date_depart'   => 'date',
             'actif'         => 'boolean',
+            'salaire_mensuel' => 'decimal:2',
         ];
     }
 
@@ -63,9 +64,19 @@ class Employe extends Model
         return "{$this->prenom} {$this->nom}";
     }
 
+
     public function tauxHoraireActuel(): float
     {
+        // if ($this->salaire_mensuel !== null && (float) $this->salaire_mensuel > 0) {
+        //     return round(((float) $this->salaire_mensuel) / 173.33, 2);
+        // }
         return $this->poste?->tauxHoraireCalcule() ?? 0.0;
+    }
+
+    
+    public function getSalaireMensuel(): float
+    {
+        return $this->salaire_mensuel ?? 0.0;
     }
 
     public function estEnPoste(): bool

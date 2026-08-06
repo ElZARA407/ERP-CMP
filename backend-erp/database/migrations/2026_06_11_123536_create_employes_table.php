@@ -20,6 +20,7 @@ return new class extends Migration
                   ->constrained('postes')
                   ->restrictOnDelete();
             $table->date('date_embauche');
+            $table->decimal('salaire_mensuel', 12, 2)->nullable();
             $table->date('date_depart')->nullable();
             $table->boolean('actif')->default(true);
             $table->timestamps();

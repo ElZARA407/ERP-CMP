@@ -50,6 +50,7 @@ class EmployeController extends BaseApiController
             'date_embauche' => ['required', 'date'],
             'date_depart'   => ['nullable', 'date', 'after:date_embauche'],
             'actif'         => ['boolean'],
+            'salaire_mensuel' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $employe = Employe::create($validated);

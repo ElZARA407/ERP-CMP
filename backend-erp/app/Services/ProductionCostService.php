@@ -71,7 +71,7 @@ class ProductionCostService
         foreach ($session->employes as $bpEmploye) {
             $heuresBrutes = $this->resolveHeuresBrutes((float) $bpEmploye->heures_brutes, $tempsBrut);
             $heuresEffectives = round(max(0, $heuresBrutes - $deductions), 2);
-            $tauxHoraire = round((float) ($bpEmploye->employe?->poste?->tauxHoraireCalcule() ?? $bpEmploye->taux_horaire), 2);
+            $tauxHoraire = round((float) ($bpEmploye->employe?->poste?->tauxHoraireCalcule($bpEmploye->employe) ?? $bpEmploye->taux_horaire), 2);
             $cout = round($heuresEffectives * $tauxHoraire, 2);
 
             $coutMainOeuvreTotal += $cout;
@@ -95,11 +95,11 @@ class ProductionCostService
             : 0.0;
 
         return [
-            'temps_brut' => round(array_sum(array_column($employeDetails, 'heures_brutes')), 2),
+            'temps_brut' => $tempsBrut,
             'temps_pause' => $tempsPause,
             'temps_panne' => $tempsPanne,
             'temps_autre' => $tempsAutre,
-            'temps_effectif' => round(array_sum(array_column($employeDetails, 'heures_effectives')), 2),
+            'temps_effectif' => round(max(0, $tempsBrut - $deductions), 2),
             'quantite_totale_produite' => $quantiteTotaleProduite,
             'cout_matieres_total' => round($coutMatieresTotal, 2),
             'cout_main_oeuvre_total' => round($coutMainOeuvreTotal, 2),

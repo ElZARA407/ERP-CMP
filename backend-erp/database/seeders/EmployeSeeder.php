@@ -30,6 +30,7 @@ class EmployeSeeder extends Seeder
                 'date_embauche' => now()->subYears(3)->toDateString(),
                 'date_depart' => null,
                 'actif' => true,
+                'salaire_mensuel' => 2500000.00,
             ],
             [
                 'matricule' => 'EMP-003',
@@ -39,6 +40,7 @@ class EmployeSeeder extends Seeder
                 'date_embauche' => now()->subYears(5)->toDateString(),
                 'date_depart' => null,
                 'actif' => true,
+                'salaire_mensuel' => 3000000.00,
             ],
             [
                 'matricule' => 'EMP-004',
@@ -48,6 +50,7 @@ class EmployeSeeder extends Seeder
                 'date_embauche' => now()->subYears(6)->toDateString(),
                 'date_depart' => null,
                 'actif' => true,
+                'salaire_mensuel' => 2000000.00,
             ],
             [
                 'matricule' => 'EMP-005',
@@ -96,6 +99,7 @@ class EmployeSeeder extends Seeder
                     'date_embauche' => $employe['date_embauche'],
                     'date_depart' => $employe['date_depart'],
                     'actif' => $employe['actif'],
+                    'salaire_mensuel' => $employe['salaire_mensuel'] ?? null,
                 ]
             );
         }
