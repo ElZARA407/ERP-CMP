@@ -122,9 +122,7 @@ class VenteDirecteController extends BaseApiController
 
     public function show(int|string $venteDirecte): JsonResponse
     {
-        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, request()->user())) {
-            return $this->forbidden('Vous ne pouvez pas consulter cette vente directe.');
-        }
+        // 1. On récupère d'abord l'objet modèle (et ses relations)
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',
@@ -135,8 +133,15 @@ class VenteDirecteController extends BaseApiController
             'lignes.lignesLivraison',
         ]);
 
+        // 2. On passe l'objet $vente au lieu de la variable $venteDirecte (qui était une string/int)
+        if (!$this->visibility->canAccessCreatedRecord($vente, request()->user())) {
+            return $this->forbidden('Vous ne pouvez pas consulter cette vente directe.');
+        }
+
+        // 3. On retourne la réponse si l'accès est autorisé
         return $this->success($this->formatVenteDirecte($vente));
     }
+
 
     public function update(Request $request, int|string $venteDirecte): JsonResponse
     {
@@ -192,9 +197,7 @@ class VenteDirecteController extends BaseApiController
 
     public function valider(Request $request, int|string $venteDirecte): JsonResponse
     {
-        if (!$this->visibility->canAccessCreatedRecord($venteDirecte, $request->user())) {
-            return $this->forbidden('Action non autorisée sur cette vente directe.');
-        }
+        // 1. On récupère d'abord l'objet modèle avec ses relations
         $vente = $this->findVenteDirecteOrFail($venteDirecte, [
             'client',
             'location',
@@ -202,6 +205,11 @@ class VenteDirecteController extends BaseApiController
             'lignes.classement',
             'livraisons',
         ]);
+
+        // 2. On passe l'objet $vente au service (au lieu de la chaîne $venteDirecte)
+        if (!$this->visibility->canAccessCreatedRecord($vente, $request->user())) {
+            return $this->forbidden('Action non autorisée sur cette vente directe.');
+        }
 
         if ($vente->statut !== 'brouillon') {
             return $this->error('Cette vente est deja validee.', 422);
